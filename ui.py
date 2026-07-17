@@ -4,11 +4,11 @@ from . import utils
 
 
 class MESHLAB_PT_main_panel(Panel):
-    bl_label = "MeshLab Integration"
+    bl_label = "PyMeshLab Integration"
     bl_idname = "MESHLAB_PT_main_panel"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
-    bl_category = "MeshLab"
+    bl_category = "PyMeshLab"
 
     def draw(self, context):
         layout = self.layout

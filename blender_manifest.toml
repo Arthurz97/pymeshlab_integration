@@ -3,7 +3,7 @@ id = "pymeshlab_integration"
 version = "1.0.0"
 name = "PyMeshLab Integration"
 tagline = "Complete interface for supported PyMeshLab filters"
-maintainer = "Arthur Zim"
+maintainer = "ArthurZ"
 type = "add-on"
 blender_version_min = "5.2.0"
 license = [
@@ -13,7 +13,6 @@ platforms = ["windows-x64"]
 
 wheels = [
   "./wheels/pymeshlab-2025.7.post1-cp313-cp313-win_amd64.whl",
-  "./wheels/numpy-2.5.1-cp313-cp313-win_amd64.whl",
   "./wheels/msvc_runtime-14.44.35112-cp313-cp313-win_amd64.whl"
 ]
 
