@@ -25,6 +25,17 @@
                 "max": 5000.0,
                 "precision": 4
             },
+            "prev_mesh_action": {
+                "name": "Previous Addon Mesh",
+                "description": "Choose what to do with previously generated PyMeshLab objects that are currently selected.",
+                "type": "enum",
+                "default": "HIDE",
+                "items": [
+                    ["KEEP", "Keep", "Keeps all selected objects untouched"],
+                    ["HIDE", "Hide", "Hides selected objects that start with 'PyMeshLab_'"],
+                    ["DELETE", "Delete", "Permanently deletes selected objects that start with 'PyMeshLab_'"]
+                ]
+            },
             "shade_smooth": {
                 "name": "Shade Smooth",
                 "description": "Render and display faces smooth, using interpolated vertex normals.",
@@ -61,11 +72,22 @@
                 "min": 0,
                 "max": 8
             },
+            "prev_mesh_action": {
+                "name": "Previous Addon Mesh",
+                "description": "Choose what to do with previously generated PyMeshLab objects that are currently selected.",
+                "type": "enum",
+                "default": "HIDE",
+                "items": [
+                    ["KEEP", "Keep", "Keeps all selected objects untouched"],
+                    ["HIDE", "Hide", "Hides selected objects that start with 'PyMeshLab_'"],
+                    ["DELETE", "Delete", "Permanently deletes selected objects that start with 'PyMeshLab_'"]
+                ]
+            },
             "shade_smooth": {
                 "name": "Shade Smooth",
                 "description": "Render and display faces smooth, using interpolated vertex normals.",
                 "type": "bool",
-                "default": true
+                "default": false
             }
         }
     },
@@ -97,11 +119,22 @@
                 "min": 0,
                 "max": 8
             },
+            "prev_mesh_action": {
+                "name": "Previous Addon Mesh",
+                "description": "Choose what to do with previously generated PyMeshLab objects that are currently selected.",
+                "type": "enum",
+                "default": "HIDE",
+                "items": [
+                    ["KEEP", "Keep", "Keeps all selected objects untouched"],
+                    ["HIDE", "Hide", "Hides selected objects that start with 'PyMeshLab_'"],
+                    ["DELETE", "Delete", "Permanently deletes selected objects that start with 'PyMeshLab_'"]
+                ]
+            },
             "shade_smooth": {
                 "name": "Shade Smooth",
                 "description": "Render and display faces smooth, using interpolated vertex normals.",
                 "type": "bool",
-                "default": true
+                "default": false
             }
         }
     },
@@ -148,11 +181,142 @@
                 "default": 12,
                 "min": 3
             },
+            "prev_mesh_action": {
+                "name": "Previous Addon Mesh",
+                "description": "Choose what to do with previously generated PyMeshLab objects that are currently selected.",
+                "type": "enum",
+                "default": "HIDE",
+                "items": [
+                    ["KEEP", "Keep", "Keeps all selected objects untouched"],
+                    ["HIDE", "Hide", "Hides selected objects that start with 'PyMeshLab_'"],
+                    ["DELETE", "Delete", "Permanently deletes selected objects that start with 'PyMeshLab_'"]
+                ]
+            },
             "shade_smooth": {
                 "name": "Shade Smooth",
                 "description": "Render and display faces smooth, using interpolated vertex normals.",
                 "type": "bool",
-                "default": true
+                "default": false
+            }
+        }
+    },
+    "create_annulus": {
+        "ui_name": "Annulus",
+        "object_name": "Annulus",
+        "description": "Create an Annulus e.g. a flat region bounded by two concentric circles, or a holed disk.",
+        "requires_selection": false,
+        "remove_attributes": [
+            "custom_normal",
+            "material_index",
+            "sharp_edge",
+            "sharp_face"
+        ],
+        "params": {
+            "internalradius": {
+                "name": "Internal Radius",
+                "description": "Internal Radius of the annulus",
+                "type": "float",
+                "unit": "LENGTH",
+                "default": 0.5,
+                "min": 0.001,
+                "precision": 4
+            },
+            "externalradius": {
+                "name": "External Radius",
+                "description": "Externale Radius of the annulus",
+                "type": "float",
+                "unit": "LENGTH",
+                "default": 1.0,
+                "min": 0.001,
+                "precision": 4
+            },
+            "sides": {
+                "name": "Sides",
+                "description": "Number of the sides of the poligonal approximation of the annulus",
+                "type": "int",
+                "default": 32,
+                "min": 3
+            },
+            "prev_mesh_action": {
+                "name": "Previous Addon Mesh",
+                "description": "Choose what to do with previously generated PyMeshLab objects that are currently selected.",
+                "type": "enum",
+                "default": "HIDE",
+                "items": [
+                    ["KEEP", "Keep", "Keeps all selected objects untouched"],
+                    ["HIDE", "Hide", "Hides selected objects that start with 'PyMeshLab_'"],
+                    ["DELETE", "Delete", "Permanently deletes selected objects that start with 'PyMeshLab_'"]
+                ]
+            },
+            "shade_smooth": {
+                "name": "Shade Smooth",
+                "description": "Render and display faces smooth, using interpolated vertex normals.",
+                "type": "bool",
+                "default": false
+            }
+        }
+    },
+    "create_cone": {
+        "ui_name": "Cone",
+        "object_name": "Cone",
+        "description": "Create a Cone",
+        "requires_selection": false,
+        "remove_attributes": [
+            "custom_normal",
+            "material_index",
+            "sharp_edge"
+        ],
+        "params": {
+            "r0": {
+                "name": "Radius 1",
+                "description": "Radius of the bottom circumference",
+                "type": "float",
+                "unit": "LENGTH",
+                "default": 1.0,
+                "min": 0.0,
+                "precision": 4
+            },
+            "r1": {
+                "name": "Radius 2",
+                "description": "Radius of the top circumference",
+                "type": "float",
+                "unit": "LENGTH",
+                "default": 2.0,
+                "min": 0.0,
+                "precision": 4
+            },
+            "h": {
+                "name": "Height",
+                "description": "Height of the Cone",
+                "type": "float",
+                "unit": "LENGTH",
+                "default": 3.0,
+                "min": 0.001,
+                "precision": 4
+            },
+            "subdiv": {
+                "name": "Side",
+                "description": "Number of sides of the polygonal approximation of the cone",
+                "type": "int",
+                "default": 36,
+                "min": 3
+            },
+            "prev_mesh_action": {
+                "name": "Previous Addon Mesh",
+                "description": "Choose what to do with previously generated PyMeshLab objects that are currently selected.",
+                "type": "enum",
+                "default": "HIDE",
+                "items": [
+                    ["KEEP", "Keep", "Keeps all selected objects untouched"],
+                    ["HIDE", "Hide", "Hides selected objects that start with 'PyMeshLab_'"],
+                    ["DELETE", "Delete", "Permanently deletes selected objects that start with 'PyMeshLab_'"]
+                ]
+            },
+            "shade_smooth": {
+                "name": "Shade Smooth",
+                "description": "Render and display faces smooth, using interpolated vertex normals.",
+                "type": "bool",
+                "default": false
             }
         }
     }

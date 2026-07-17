@@ -48,6 +48,9 @@ class MESHLAB_OT_apply_filter(Operator):
         original_obj = context.active_object
         has_mesh = original_obj and original_obj.type == 'MESH'
         
+        # --- SALVA TODOS OS OBJETOS SELECIONADOS EM UMA LISTA ---
+        original_selected_objs = context.selected_objects[:] 
+        
         if requires_selection and not has_mesh:
             self.report({'ERROR'}, "This filter requires an active mesh selection.")
             return {'CANCELLED'}
@@ -68,13 +71,21 @@ class MESHLAB_OT_apply_filter(Operator):
                 filter_params_dict = filter_config.get('params', {})
                 
                 apply_shade_smooth = False
+                apply_prev_mesh_action = 'KEEP'  # <--- Nova variável
                 
                 for p_name, p_info in filter_params_dict.items():
-                    if hasattr(dynamic_props, p_name):
-                        value = getattr(dynamic_props, p_name)
+                    unique_p_name = f"{filt}_{p_name}"
+                    
+                    if hasattr(dynamic_props, unique_p_name):
+                        value = getattr(dynamic_props, unique_p_name)
                         
                         if p_name == "shade_smooth":
                             apply_shade_smooth = value
+                            continue
+                            
+                        # <--- NOVA INTERCEPTAÇÃO DO ENUM
+                        if p_name == "prev_mesh_action":
+                            apply_prev_mesh_action = value
                             continue
                             
                         p_type = p_info.get('type')
@@ -107,11 +118,14 @@ class MESHLAB_OT_apply_filter(Operator):
                     new_obj.name = f"{original_obj.name}_{filt}"
                     new_obj.location = original_obj.location
                     if hide_original_ui: 
-                        original_obj.hide_set(True)
-                        original_obj.hide_render = True
+                        # Atualizado para esconder todos na opção antiga também (filtros de edição)
+                        for obj in original_selected_objs:
+                            if obj:
+                                obj.hide_set(True)
+                                obj.hide_render = True
                 else:
                     obj_name = filter_config['object_name']
-                    new_obj.name = f"MeshLab_{obj_name}"
+                    new_obj.name = f"PyMeshLab_{obj_name}"
                     new_obj.location = context.scene.cursor.location
                 
                 new_obj.rotation_euler = (0, 0, 0)
@@ -122,7 +136,6 @@ class MESHLAB_OT_apply_filter(Operator):
                 context.view_layer.objects.active = new_obj
                 
                 if new_obj.type == 'MESH' and new_obj.data:
-                    # Puxa a lista do JSON. Se a chave não existir no JSON, usa uma lista vazia (não apaga nada).
                     attrs_to_remove = filter_config.get('remove_attributes', [])
                     
                     for attr in attrs_to_remove:
@@ -133,6 +146,18 @@ class MESHLAB_OT_apply_filter(Operator):
                     bpy.ops.object.shade_smooth()
                 else:
                     bpy.ops.object.shade_flat()
+                    
+                # <--- APLICA A AÇÃO DE ESCONDER TODOS OS OBJETOS SELECIONADOS AQUI
+                # <--- NOVA LÓGICA DE PROTEÇÃO COM PREFIXO
+                if apply_prev_mesh_action in ['HIDE', 'DELETE']:
+                    for obj in original_selected_objs:
+                        # Só afeta se o objeto existir E começar com 'PyMeshLab_'
+                        if obj and obj.name.startswith("PyMeshLab_"):
+                            if apply_prev_mesh_action == 'HIDE':
+                                obj.hide_set(True)
+                                obj.hide_render = True
+                            elif apply_prev_mesh_action == 'DELETE':
+                                bpy.data.objects.remove(obj, do_unlink=True)
                 
                 self.report({'INFO'}, f"Filter '{filt}' applied successfully!")
             return {'FINISHED'}

@@ -28,13 +28,19 @@ class MESHLAB_PT_main_panel(Panel):
                 box = layout.box()
                 box.label(text="Parameters:", icon='TOOL_SETTINGS')
                 
-                # --- AQUI ESTÁ O CÓDIGO NOVO ---
+                # --- AQUI ESTA O CODIGO NOVO ---
                 for p_name, p_info in filter_params_dict.items():
-                    if hasattr(dynamic_props, p_name):
-                        if p_info.get('type') in ['float', 'int']:
-                            box.prop(dynamic_props, p_name)
+                    unique_p_name = f"{filt}_{p_name}"
+                    
+                    if hasattr(dynamic_props, unique_p_name):
+                        # Puxamos o 'name' do JSON para forçar o rótulo correto na UI
+                        ui_label = p_info.get('name', p_name)
+                        
+                        if p_info.get('type') == 'enum':
+                            # expand=True transforma o Enum num grupo de botões horizontais
+                            box.prop(dynamic_props, unique_p_name, text=ui_label, expand=True)
                         else:
-                            box.prop(dynamic_props, p_name)
+                            box.prop(dynamic_props, unique_p_name, text=ui_label)
                 # -------------------------------
             
             layout.separator()

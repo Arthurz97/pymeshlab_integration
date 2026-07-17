@@ -50,8 +50,10 @@ def create_dynamic_properties_class():
             if filt.startswith("__"):
                 continue
             for p_name, p_info in data.get('params', {}).items():
-                if p_name not in all_params:
-                    all_params[p_name] = p_info
+                # CRIAMOS UM NOME UNICO PARA A PROPRIEDADE
+                unique_p_name = f"{filt}_{p_name}"
+                if unique_p_name not in all_params:
+                    all_params[unique_p_name] = p_info
                     
     for p_name, p_info in all_params.items():
         p_type = p_info.get('type')

@@ -25,11 +25,13 @@ def set_filter_defaults(context):
     
     if filt and filt != "NONE" and cat in CATEGORIES and filt in CATEGORIES[cat]:
         for p_name, p_info in CATEGORIES[cat][filt].get('params', {}).items():
-            if hasattr(dynamic_props, p_name):
+            unique_p_name = f"{filt}_{p_name}"
+            
+            if hasattr(dynamic_props, unique_p_name):
                 default_val = p_info.get('default')
                 if default_val is not None:
                     try:
-                        setattr(dynamic_props, p_name, default_val)
+                        setattr(dynamic_props, unique_p_name, default_val)
                     except TypeError:
                         pass
                         
