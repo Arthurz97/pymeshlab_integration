@@ -68,7 +68,7 @@ class MESHLAB_props_filters(PropertyGroup):
             ),
         ],
         default="HIDE",
-    )
+    )  # type: ignore
 
     transfer_method: EnumProperty(
         name="Transfer Method",
@@ -86,11 +86,11 @@ class MESHLAB_props_filters(PropertyGroup):
             ),
         ],
         default="DISK",
-    )
+    )  # type: ignore
 
-    hide_original: BoolProperty(name="Hide Original", default=True)
+    hide_original: BoolProperty(name="Hide Original", default=True)  # type: ignore
 
-    show_object_settings: BoolProperty(name="Object Settings", default=False)
+    show_object_settings: BoolProperty(name="Object Settings", default=False)  # type: ignore
 
 
 def create_dynamic_properties_class():

@@ -77,7 +77,10 @@ class MESHLAB_OT_apply_filter(Operator):
 
                 # --- MÉTODO DE TRANSFERÊNCIA ---
                 if transfer_method == "MEMORY":
-                    self.report({"INFO"}, "Memory transfer (NumPy) in development. Using Disk as fallback.")
+                    self.report(
+                        {"INFO"},
+                        "Memory transfer (NumPy) in development. Using Disk as fallback.",
+                    )
 
                 if requires_selection and has_mesh:
                     input_path = os.path.join(tmpdir, "input.obj")
@@ -104,7 +107,9 @@ class MESHLAB_OT_apply_filter(Operator):
 
                         if p_type == "PercentageValue":
                             try:
-                                params[p_name] = pymeshlab.PercentageValue(float(str(value).strip().replace("%", "")))
+                                params[p_name] = pymeshlab.PercentageValue(
+                                    float(str(value).strip().replace("%", ""))
+                                )
                             except:
                                 params[p_name] = value
                         elif p_type == "AbsoluteValue":
@@ -154,7 +159,9 @@ class MESHLAB_OT_apply_filter(Operator):
                     attrs_to_remove = filter_config.get("remove_attributes", [])
                     for attr in attrs_to_remove:
                         if attr in new_obj.data.attributes:
-                            new_obj.data.attributes.remove(new_obj.data.attributes[attr])
+                            new_obj.data.attributes.remove(
+                                new_obj.data.attributes[attr]
+                            )
 
                 # --- NOVO: APLICA SHADE FLAT VIA CÓDIGO (INVISÍVEL NA UI) ---
                 if filter_config.get("shade_flat", False):
