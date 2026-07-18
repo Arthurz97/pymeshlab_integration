@@ -1,7 +1,7 @@
-import bpy  # type: ignore
+import bpy
 import uuid
-from bpy.types import PropertyGroup  # type: ignore
-from bpy.props import (  # type: ignore
+from bpy.types import PropertyGroup
+from bpy.props import (
     EnumProperty,
     BoolProperty,
     FloatProperty,
@@ -12,6 +12,30 @@ from . import utils
 
 
 def update_ui_and_defaults(self, context):
+    utils.set_filter_defaults(context)
+
+
+def update_category(self, context):
+    props = context.scene.meshlab_props
+    cat = props.category
+    if cat in utils.CATEGORIES:
+        valid_filters = sorted(
+            [f for f in utils.CATEGORIES[cat].keys() if not f.startswith("__")]
+        )
+        if valid_filters and props.filter_name not in valid_filters:
+            props.filter_name = valid_filters[0]
+    utils.set_filter_defaults(context)
+
+
+def update_category(self, context):
+    props = context.scene.meshlab_props
+    cat = props.category
+    if cat in utils.CATEGORIES:
+        valid_filters = sorted(
+            [f for f in utils.CATEGORIES[cat].keys() if not f.startswith("__")]
+        )
+        if valid_filters and props.filter_name not in valid_filters:
+            props.filter_name = valid_filters[0]
     utils.set_filter_defaults(context)
 
 
@@ -48,11 +72,11 @@ class MESHLAB_props_filters(PropertyGroup):
         return [("NONE", "No filter", "")]
 
     category: EnumProperty(
-        name="Category", items=get_categories, update=update_ui_and_defaults
-    )  # type: ignore
+        name="Category", items=get_categories, update=update_category
+    )
     filter_name: EnumProperty(
         name="Filter", items=get_filters, update=update_ui_and_defaults
-    )  # type: ignore
+    )
 
     # --- PROPRIEDADES GLOBAIS (Não resetam ao trocar de filtro) ---
     global_prev_mesh_action: EnumProperty(
@@ -68,7 +92,7 @@ class MESHLAB_props_filters(PropertyGroup):
             ),
         ],
         default="HIDE",
-    )  # type: ignore
+    )
 
     transfer_method: EnumProperty(
         name="Transfer Method",
@@ -86,11 +110,11 @@ class MESHLAB_props_filters(PropertyGroup):
             ),
         ],
         default="DISK",
-    )  # type: ignore
+    )
 
-    hide_original: BoolProperty(name="Hide Original", default=True)  # type: ignore
+    hide_original: BoolProperty(name="Hide Original", default=True)
 
-    show_object_settings: BoolProperty(name="Object Settings", default=False)  # type: ignore
+    show_object_settings: BoolProperty(name="Object Settings", default=False)
 
 
 def create_dynamic_properties_class():

@@ -7,9 +7,9 @@ if "bpy" in locals():
     importlib.reload(operators)
     importlib.reload(ui)
 else:
-    import bpy  # type: ignore
-    from bpy.props import PointerProperty  # type: ignore
-    from bpy.app.handlers import persistent  # type: ignore
+    import bpy
+    from bpy.props import PointerProperty
+    from bpy.app.handlers import persistent
     from . import utils
     from . import properties
     from . import operators

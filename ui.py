@@ -1,5 +1,5 @@
-import bpy  # type: ignore
-from bpy.types import Panel  # type: ignore
+import bpy
+from bpy.types import Panel
 from . import utils
 
 

@@ -1,7 +1,7 @@
-import bpy, os, tempfile, math  # type: ignore
-from bpy.types import Operator  # type: ignore
-from mathutils import Matrix  # type: ignore
-import pymeshlab  # type: ignore
+import bpy, os, tempfile, math
+from bpy.types import Operator
+from mathutils import Matrix
+import pymeshlab
 from . import utils
 
 
@@ -45,6 +45,10 @@ class MESHLAB_OT_apply_filter(Operator):
         return context.area and context.area.type == "VIEW_3D"
 
     def execute(self, context):
+        # Trava de segurança: Garante que estamos no Object Mode para não dar erro
+        if context.active_object and context.active_object.mode != "OBJECT":
+            bpy.ops.object.mode_set(mode="OBJECT")
+
         props = context.scene.meshlab_props
         dynamic_props = context.scene.meshlab_dynamic_props
         cat = props.category
@@ -66,7 +70,6 @@ class MESHLAB_OT_apply_filter(Operator):
             self.report({"ERROR"}, "This filter requires an active mesh selection.")
             return {"CANCELLED"}
 
-        # --- PUXANDO AS VARIÁVEIS GLOBAIS DO PYTHON ---
         transfer_method = props.transfer_method
         apply_prev_mesh_action = props.global_prev_mesh_action
 
@@ -75,7 +78,6 @@ class MESHLAB_OT_apply_filter(Operator):
                 output_path = os.path.join(tmpdir, "output.obj")
                 ms = pymeshlab.MeshSet()
 
-                # --- MÉTODO DE TRANSFERÊNCIA ---
                 if transfer_method == "MEMORY":
                     self.report(
                         {"INFO"},
@@ -97,7 +99,6 @@ class MESHLAB_OT_apply_filter(Operator):
                 params = {}
                 filter_params_dict = filter_config.get("params", {})
 
-                # --- VARREDURA DOS PARÂMETROS ---
                 for p_name, p_info in filter_params_dict.items():
                     unique_p_name = f"{filt}_{p_name}"
 
@@ -131,13 +132,21 @@ class MESHLAB_OT_apply_filter(Operator):
                     self.report({"ERROR"}, "Failed to import the processed mesh.")
                     return {"CANCELLED"}
 
+                # Sempre aplica a correção do eixo X exigida pelo importador OBJ do Blender
                 correction_matrix = Matrix.Rotation(math.radians(90), 4, "X")
                 new_obj.data.transform(correction_matrix)
-                new_obj.data.update()
 
                 if requires_selection and has_mesh:
-                    new_obj.name = f"{original_obj.name}_{filt}"
-                    new_obj.location = original_obj.location
+                    # 1. Desfaz a transformação global nos vértices
+                    new_obj.data.transform(original_obj.matrix_world.inverted())
+
+                    # 2. Copia exatamente o Location, Rotation e Scale do original
+                    new_obj.matrix_world = original_obj.matrix_world.copy()
+
+                    # 3. Corta o sufixo antigo para não gerar nomes infinitos
+                    base_name = original_obj.name.split(f"_{filt}")[0]
+                    new_obj.name = f"{base_name}_{filt}"
+
                     if hide_original_ui:
                         for obj in original_selected_objs:
                             if obj:
@@ -147,9 +156,11 @@ class MESHLAB_OT_apply_filter(Operator):
                     obj_name = filter_config["object_name"]
                     new_obj.name = f"PyMeshLab_{obj_name}"
                     new_obj.location = context.scene.cursor.location
+                    new_obj.rotation_euler = (0, 0, 0)
+                    new_obj.scale = (1, 1, 1)
 
-                new_obj.rotation_euler = (0, 0, 0)
-                new_obj.scale = (1, 1, 1)
+                # Atualiza a geometria no Blender para refletir os cálculos
+                new_obj.data.update()
 
                 bpy.ops.object.select_all(action="DESELECT")
                 new_obj.select_set(True)
@@ -163,11 +174,9 @@ class MESHLAB_OT_apply_filter(Operator):
                                 new_obj.data.attributes[attr]
                             )
 
-                # --- NOVO: APLICA SHADE FLAT VIA CÓDIGO (INVISÍVEL NA UI) ---
                 if filter_config.get("shade_flat", False):
                     bpy.ops.object.shade_flat()
 
-                # --- AÇÃO DE KEEP / HIDE / DELETE ---
                 if apply_prev_mesh_action in ["HIDE", "DELETE"]:
                     for obj in original_selected_objs:
                         if obj and obj.name.startswith("PyMeshLab_"):

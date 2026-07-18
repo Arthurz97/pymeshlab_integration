@@ -1,0 +1,87 @@
+{
+    "__category_info__": {
+        "description": "Filters for remeshing, simplifying, and reconstructing 3D models."
+    },
+    "meshing_isotropic_explicit_remeshing": {
+        "ui_name": "Remeshing: Isotropic Explicit Remeshing",
+        "description": "Perform a explicit remeshing of a triangular mesh, by repeatedly applying edge flip, collapse, relax and refine operations to regularize size and aspect ration of the triangular meshing.",
+        "requires_selection": true,
+        "params": {
+            "iterations": {
+                "name": "Iterations",
+                "description": "Number of iterations of the remeshing operations to repeat on the mesh.",
+                "type": "int",
+                "default": 10,
+                "min": 0
+            },
+            "adaptive": {
+                "name": "Adaptive remeshing",
+                "description": "Toggles adaptive isotropic remeshing.",
+                "type": "bool",
+                "default": false
+            },
+            "selectedonly": {
+                "name": "Remesh only selected faces",
+                "description": "If checked the remeshing operations will be applied only to the selected faces.",
+                "type": "bool",
+                "default": false
+            },
+            "targetlen": {
+                "name": "Target Length",
+                "description": "Sets the target length for the remeshed mesh edges.",
+                "type": "PercentageValue",
+                "default": "1%"
+            },
+            "featuredeg": {
+                "name": "Crease Angle",
+                "description": "Minimum angle between faces of the original to consider the shared edge as a feature to be preserved.",
+                "type": "float",
+                "default": 30.0,
+                "min": 0.0,
+                "max": 180.0
+            },
+            "checksurfdist": {
+                "name": "Check Surface Distance",
+                "description": "If toggled each local operation must deviate from original mesh by [Max. surface distance]",
+                "type": "bool",
+                "default": true
+            },
+            "maxsurfdist": {
+                "name": "Max. Surface Distance",
+                "description": "Maximal surface deviation allowed for each local operation",
+                "type": "PercentageValue",
+                "default": "1%"
+            },
+            "splitflag": {
+                "name": "Refine Step",
+                "description": "If checked the remeshing operations will include a refine step.",
+                "type": "bool",
+                "default": true
+            },
+            "collapseflag": {
+                "name": "Collapse Step",
+                "description": "If checked the remeshing operations will include a collapse step.",
+                "type": "bool",
+                "default": true
+            },
+            "swapflag": {
+                "name": "Edge-Swap Step",
+                "description": "If checked the remeshing operations will include a edge-swap step, aimed at improving the vertex valence of the resulting mesh.",
+                "type": "bool",
+                "default": true
+            },
+            "smoothflag": {
+                "name": "Smooth Step",
+                "description": "If checked the remeshing operations will include a smoothing step, aimed at relaxing the vertex positions in a Laplacian sense.",
+                "type": "bool",
+                "default": true
+            },
+            "reprojectflag": {
+                "name": "Reproject Step",
+                "description": "If checked the remeshing operations will include a step to reproject the mesh vertices on the original surface.",
+                "type": "bool",
+                "default": true
+            }
+        }
+    }
+}

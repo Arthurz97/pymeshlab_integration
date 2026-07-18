@@ -1,4 +1,4 @@
-import bpy, os, json  # type: ignore
+import bpy, os, json
 
 # Dicionário global para armazenar todos os filtros carregados
 CATEGORIES = {}
