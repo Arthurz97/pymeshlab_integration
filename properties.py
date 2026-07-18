@@ -1,5 +1,6 @@
 import bpy
 import uuid
+import math
 from bpy.types import PropertyGroup
 from bpy.props import (
     EnumProperty,
@@ -9,6 +10,57 @@ from bpy.props import (
     StringProperty,
 )
 from . import utils
+
+
+# --- NOVAS FUNÇÕES PARA SINCRONIZAR ABSOLUTO E PORCENTAGEM ---
+def make_update_abs(abs_name, perc_name):
+    def update(self, context):
+        if self.get("_updating"):
+            return
+        self["_updating"] = True
+        try:
+            obj = context.active_object
+            diag = 1.0
+            if obj and obj.type == "MESH":
+                diag = obj.dimensions.length  # Calcula a diagonal perfeitamente
+                if diag == 0:
+                    diag = 1.0
+            val_abs = getattr(self, abs_name)
+
+            if val_abs > diag:
+                val_abs = diag
+                setattr(self, abs_name, val_abs)
+            elif val_abs < 0.0:
+                val_abs = 0.0
+                setattr(self, abs_name, val_abs)
+
+            val_perc = (val_abs / diag) * 100.0
+            setattr(self, perc_name, val_perc)
+        finally:
+            self["_updating"] = False
+
+    return update
+
+
+def make_update_perc(abs_name, perc_name):
+    def update(self, context):
+        if self.get("_updating"):
+            return
+        self["_updating"] = True
+        try:
+            obj = context.active_object
+            diag = 1.0
+            if obj and obj.type == "MESH":
+                diag = obj.dimensions.length
+                if diag == 0:
+                    diag = 1.0
+            val_perc = getattr(self, perc_name)
+            val_abs = (val_perc / 100.0) * diag
+            setattr(self, abs_name, val_abs)
+        finally:
+            self["_updating"] = False
+
+    return update
 
 
 def update_ui_and_defaults(self, context):
@@ -193,8 +245,43 @@ def create_dynamic_properties_class():
         elif p_type == "bool":
             props[p_name] = BoolProperty(**kwargs)
 
-        elif p_type in ["string", "PercentageValue", "AbsoluteValue"]:
+        elif p_type in ["string", "AbsoluteValue"]:
             props[p_name] = StringProperty(**kwargs)
+
+        elif p_type == "PercentageValue":
+            abs_name = f"{p_name}_abs"
+            perc_name = f"{p_name}_perc"
+
+            default_perc = 1.0
+            if "default" in p_info:
+                val = p_info["default"]
+                if isinstance(val, str) and "%" in val:
+                    default_perc = float(val.replace("%", ""))
+                else:
+                    try:
+                        default_perc = float(val)
+                    except ValueError:
+                        pass
+
+            props[abs_name] = FloatProperty(
+                name="world unit",
+                description=kwargs.get("description", ""),
+                default=0.0,
+                precision=6,
+                step=1,
+                update=make_update_abs(abs_name, perc_name),
+            )
+
+            props[perc_name] = FloatProperty(
+                name="perc on",
+                description=kwargs.get("description", ""),
+                default=default_perc,
+                precision=3,
+                step=50,
+                min=0.0,
+                max=100.0,
+                update=make_update_perc(abs_name, perc_name),
+            )
 
         elif p_type == "enum":
             p_items = p_info.get("items", [])

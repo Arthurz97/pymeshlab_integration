@@ -39,6 +39,18 @@ def set_filter_defaults(context):
                     except TypeError:
                         pass
 
+            elif hasattr(dynamic_props, f"{unique_p_name}_perc"):
+                default_val = p_info.get("default")
+                if default_val is not None:
+                    try:
+                        if isinstance(default_val, str) and "%" in default_val:
+                            val = float(default_val.replace("%", ""))
+                        else:
+                            val = float(default_val)
+                        setattr(dynamic_props, f"{unique_p_name}_perc", val)
+                    except (TypeError, ValueError):
+                        pass
+
     if getattr(context, "area", None):
         for region in context.area.regions:
             if region.type == "UI":

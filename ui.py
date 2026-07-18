@@ -51,10 +51,35 @@ class MESHLAB_PT_main_panel(Panel):
             # Desenha os parâmetros dinâmicos puros
             for p_name, p_info in filter_params_dict.items():
                 unique_p_name = f"{filt}_{p_name}"
-                if hasattr(dynamic_props, unique_p_name):
-                    has_params = True
-                    ui_label = p_info.get("name", p_name)
+                ui_label = p_info.get("name", p_name)
 
+                if p_info.get("type") == "PercentageValue":
+                    abs_name = f"{unique_p_name}_abs"
+                    perc_name = f"{unique_p_name}_perc"
+
+                    if hasattr(dynamic_props, perc_name):
+                        has_params = True
+
+                        diag = 1.0
+                        obj = context.active_object
+                        if obj and obj.type == "MESH":
+                            diag = obj.dimensions.length
+                            if diag == 0:
+                                diag = 1.0
+
+                        box_filter.label(text=f"{ui_label} (abs and %)")
+                        row = box_filter.row(align=True)
+
+                        col_abs = row.column()
+                        col_abs.label(text="world unit")
+                        col_abs.prop(dynamic_props, abs_name, text="")
+
+                        col_perc = row.column()
+                        col_perc.label(text=f"perc on(0 .. {diag:.4f})")
+                        col_perc.prop(dynamic_props, perc_name, text="")
+
+                elif hasattr(dynamic_props, unique_p_name):
+                    has_params = True
                     row = box_filter.row()
                     if p_info.get("type") == "enum":
                         row.prop(
@@ -62,9 +87,6 @@ class MESHLAB_PT_main_panel(Panel):
                         )
                     else:
                         row.prop(dynamic_props, unique_p_name, text=ui_label)
-
-            if not has_params:
-                box_filter.label(text="No parameters for this filter.")
 
             # --- 4. BOTÃO APPLY (Abaixo da caixa de parâmetros) ---
             layout.separator()

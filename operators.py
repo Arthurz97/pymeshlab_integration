@@ -45,7 +45,8 @@ class MESHLAB_OT_apply_filter(Operator):
         return context.area and context.area.type == "VIEW_3D"
 
     def execute(self, context):
-        # Trava de segurança: Garante que estamos no Object Mode para não dar erro
+        # SEGURANÇA DE MODO: Garante que o Blender esteja no modo Objeto.
+        # Evita crashes caso o usuário tente rodar o filtro de dentro do Edit Mode.
         if context.active_object and context.active_object.mode != "OBJECT":
             bpy.ops.object.mode_set(mode="OBJECT")
 
@@ -65,7 +66,8 @@ class MESHLAB_OT_apply_filter(Operator):
         has_mesh = original_obj and original_obj.type == "MESH"
         original_selected_objs = context.selected_objects[:]
 
-        # TRAVA DE MULTI-SELEÇÃO: Permite apenas 1 seleção de objeto no máximo
+        # TRAVA DE MULTI-SELEÇÃO: O PyMeshLab em scripts simples pode se perder com múltiplos inputs.
+        # Esta trava garante que a lógica de nomeação e matriz funcione perfeitamente sobre 1 único alvo.
         if len(original_selected_objs) > 1:
             self.report(
                 {"ERROR"},
@@ -79,7 +81,6 @@ class MESHLAB_OT_apply_filter(Operator):
             )
             return {"CANCELLED"}
 
-        transfer_method = props.transfer_method
         apply_prev_mesh_action = props.global_prev_mesh_action
 
         try:
@@ -87,12 +88,7 @@ class MESHLAB_OT_apply_filter(Operator):
                 output_path = os.path.join(tmpdir, "output.obj")
                 ms = pymeshlab.MeshSet()
 
-                if transfer_method == "MEMORY":
-                    self.report(
-                        {"INFO"},
-                        "Memory transfer (NumPy) in development. Using Disk as fallback.",
-                    )
-
+                # EXPORTAÇÃO (DISK): Salva a malha selecionada temporariamente para ser lida pelo PyMeshLab
                 if requires_selection and has_mesh:
                     input_path = os.path.join(tmpdir, "input.obj")
                     bpy.ops.object.select_all(action="DESELECT")
@@ -105,24 +101,26 @@ class MESHLAB_OT_apply_filter(Operator):
                     )
                     ms.load_new_mesh(input_path)
 
+                # LEITURA DE PARÂMETROS DINÂMICOS DA UI
                 params = {}
                 filter_params_dict = filter_config.get("params", {})
 
                 for p_name, p_info in filter_params_dict.items():
                     unique_p_name = f"{filt}_{p_name}"
+                    p_type = p_info.get("type")
 
-                    if hasattr(dynamic_props, unique_p_name):
+                    # Lógica especial para PercentageValue: no Blender separamos em '_abs' e '_perc'
+                    # para melhorar a UI, mas para o PyMeshLab mandamos exclusivamente o valor percentual limpo.
+                    if p_type == "PercentageValue":
+                        perc_name = f"{unique_p_name}_perc"
+                        if hasattr(dynamic_props, perc_name):
+                            val = getattr(dynamic_props, perc_name)
+                            params[p_name] = pymeshlab.PercentageValue(float(val))
+
+                    elif hasattr(dynamic_props, unique_p_name):
                         value = getattr(dynamic_props, unique_p_name)
-                        p_type = p_info.get("type")
 
-                        if p_type == "PercentageValue":
-                            try:
-                                params[p_name] = pymeshlab.PercentageValue(
-                                    float(str(value).strip().replace("%", ""))
-                                )
-                            except:
-                                params[p_name] = value
-                        elif p_type == "AbsoluteValue":
+                        if p_type == "AbsoluteValue":
                             try:
                                 params[p_name] = pymeshlab.AbsoluteValue(float(value))
                             except:
@@ -130,9 +128,20 @@ class MESHLAB_OT_apply_filter(Operator):
                         else:
                             params[p_name] = value
 
+                # EXECUÇÃO: Aplica o filtro com os parâmetros mapeados e salva no disco.
                 ms.apply_filter(filt, **params)
                 ms.save_current_mesh(output_path)
 
+                # SEGURANÇA DE FALHA: Se o PyMeshLab falhar silenciosamente (ex: malha impossível de dar remesh),
+                # bloqueia o erro do Blender de não encontrar o 'output.obj'.
+                if not os.path.exists(output_path):
+                    self.report(
+                        {"ERROR"},
+                        "PyMeshLab falhou ao gerar a malha. Verifique os parâmetros.",
+                    )
+                    return {"CANCELLED"}
+
+                # IMPORTAÇÃO DA MALHA PROCESSADA
                 bpy.ops.wm.obj_import(filepath=output_path)
 
                 if context.selected_objects:
@@ -141,37 +150,39 @@ class MESHLAB_OT_apply_filter(Operator):
                     self.report({"ERROR"}, "Failed to import the processed mesh.")
                     return {"CANCELLED"}
 
-                # Sempre aplica a correção do eixo X exigida pelo importador OBJ do Blender
+                # CORREÇÃO DE ROTAÇÃO OBJ: O importador OBJ do Blender vira a malha em 90 graus no eixo X.
+                # Esta matriz corrige isso na raiz dos vértices (data) para alinhar perfeitamente com a malha original.
                 correction_matrix = Matrix.Rotation(math.radians(90), 4, "X")
                 new_obj.data.transform(correction_matrix)
 
                 if requires_selection and has_mesh:
-                    # 1. Desfaz a transformação global nos vértices
+                    # RESTAURAÇÃO DE MATRIZ: Se o objeto original tinha escala ou rotação aplicadas em Object Mode,
+                    # a exportação/importação bagunça isso. Esse bloco injeta a World Matrix exata do objeto original no novo.
                     new_obj.data.transform(original_obj.matrix_world.inverted())
-
-                    # 2. Copia exatamente o Location, Rotation e Scale do original
                     new_obj.matrix_world = original_obj.matrix_world.copy()
 
-                    # 3. Tratamento de nome: extrai o nome base e adiciona o sufixo.
-                    # O Blender cuidará automaticamente das numerações .001, .002, etc.
+                    # NOMEAÇÃO AUTOMÁTICA (Filtros de edição):
+                    # O ".split" limpa sufixos antigos (evitando Cube_pymeshlab_pymeshlab).
+                    # Ao injetar "_pymeshlab" no fim, o próprio Blender gerencia sufixos ".001", ".002" caso haja nomes duplicados na cena.
                     base_name = original_obj.name.split("_pymeshlab")[0]
                     new_obj.name = f"{base_name}_pymeshlab"
 
                 else:
-                    # Criando novo nome com o sufixo em minúsculo para filtros de criação
-                    obj_name = filter_config["object_name"]
+                    # NOMEAÇÃO AUTOMÁTICA (Filtros de criação como o Primitive Cube):
+                    obj_name = filter_config.get("object_name", filt)
                     new_obj.name = f"{obj_name}_pymeshlab"
                     new_obj.location = context.scene.cursor.location
                     new_obj.rotation_euler = (0, 0, 0)
                     new_obj.scale = (1, 1, 1)
 
-                # Atualiza a geometria no Blender para refletir os cálculos
                 new_obj.data.update()
 
+                # CONFIGURAÇÃO DE ATIVIDADE: Define o recém-criado como ativo na cena.
                 bpy.ops.object.select_all(action="DESELECT")
                 new_obj.select_set(True)
                 context.view_layer.objects.active = new_obj
 
+                # LIMPEZA DE ATRIBUTOS: O PyMeshLab/OBJ pode gerar sujeira como normais travadas ou UVs residuais.
                 if new_obj.type == "MESH" and new_obj.data:
                     attrs_to_remove = filter_config.get("remove_attributes", [])
                     for attr in attrs_to_remove:
@@ -180,10 +191,11 @@ class MESHLAB_OT_apply_filter(Operator):
                                 new_obj.data.attributes[attr]
                             )
 
+                # SHADE FLAT: Aplicável a primitivas criadas ou malhas onde normais suaves causem artefatos visuais.
                 if filter_config.get("shade_flat", False):
                     bpy.ops.object.shade_flat()
 
-                # Action on Selected: Removemos o teste de prefixo e aplicamos indiscriminadamente ao objeto anterior selecionado
+                # AÇÃO SOBRE O OBJETO ANTERIOR (Keep, Hide, Delete)
                 if apply_prev_mesh_action in ["HIDE", "DELETE"]:
                     for obj in original_selected_objs:
                         if obj:

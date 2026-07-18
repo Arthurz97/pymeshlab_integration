@@ -52,7 +52,7 @@
                 "name": "Check Surface Distance",
                 "description": "If toggled each local operation must deviate from original mesh by [Max. surface distance]",
                 "type": "bool",
-                "default": true
+                "default": false
             },
             "maxsurfdist": {
                 "name": "Max. Surface Distance",
