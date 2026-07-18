@@ -6,6 +6,14 @@
         "ui_name": "Remeshing: Isotropic Explicit Remeshing",
         "description": "Perform a explicit remeshing of a triangular mesh, by repeatedly applying edge flip, collapse, relax and refine operations to regularize size and aspect ration of the triangular meshing.",
         "requires_selection": true,
+        "shade_flat": true,
+        "remove_attributes": [
+            "custom_normal",
+            "material_index",
+            "sharp_edge",
+            "UVMap",
+            "sharp_face"
+        ],
         "params": {
             "iterations": {
                 "name": "Iterations",

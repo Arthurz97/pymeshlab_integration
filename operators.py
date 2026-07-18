@@ -61,13 +61,22 @@ class MESHLAB_OT_apply_filter(Operator):
         filter_config = utils.CATEGORIES[cat][filt]
         requires_selection = filter_config.get("requires_selection", True)
 
-        hide_original_ui = props.hide_original
         original_obj = context.active_object
         has_mesh = original_obj and original_obj.type == "MESH"
         original_selected_objs = context.selected_objects[:]
 
-        if requires_selection and not has_mesh:
-            self.report({"ERROR"}, "This filter requires an active mesh selection.")
+        # TRAVA DE MULTI-SELEÇÃO: Permite apenas 1 seleção de objeto no máximo
+        if len(original_selected_objs) > 1:
+            self.report(
+                {"ERROR"},
+                "Múltiplas seleções não são suportadas. Selecione apenas 1 objeto.",
+            )
+            return {"CANCELLED"}
+
+        if requires_selection and (not original_selected_objs or not has_mesh):
+            self.report(
+                {"ERROR"}, "This filter requires exactly one active mesh selection."
+            )
             return {"CANCELLED"}
 
         transfer_method = props.transfer_method
@@ -143,18 +152,15 @@ class MESHLAB_OT_apply_filter(Operator):
                     # 2. Copia exatamente o Location, Rotation e Scale do original
                     new_obj.matrix_world = original_obj.matrix_world.copy()
 
-                    # 3. Corta o sufixo antigo para não gerar nomes infinitos
-                    base_name = original_obj.name.split(f"_{filt}")[0]
-                    new_obj.name = f"{base_name}_{filt}"
+                    # 3. Tratamento de nome: extrai o nome base e adiciona o sufixo.
+                    # O Blender cuidará automaticamente das numerações .001, .002, etc.
+                    base_name = original_obj.name.split("_pymeshlab")[0]
+                    new_obj.name = f"{base_name}_pymeshlab"
 
-                    if hide_original_ui:
-                        for obj in original_selected_objs:
-                            if obj:
-                                obj.hide_set(True)
-                                obj.hide_render = True
                 else:
+                    # Criando novo nome com o sufixo em minúsculo para filtros de criação
                     obj_name = filter_config["object_name"]
-                    new_obj.name = f"PyMeshLab_{obj_name}"
+                    new_obj.name = f"{obj_name}_pymeshlab"
                     new_obj.location = context.scene.cursor.location
                     new_obj.rotation_euler = (0, 0, 0)
                     new_obj.scale = (1, 1, 1)
@@ -177,9 +183,10 @@ class MESHLAB_OT_apply_filter(Operator):
                 if filter_config.get("shade_flat", False):
                     bpy.ops.object.shade_flat()
 
+                # Action on Selected: Removemos o teste de prefixo e aplicamos indiscriminadamente ao objeto anterior selecionado
                 if apply_prev_mesh_action in ["HIDE", "DELETE"]:
                     for obj in original_selected_objs:
-                        if obj and obj.name.startswith("PyMeshLab_"):
+                        if obj:
                             if apply_prev_mesh_action == "HIDE":
                                 obj.hide_set(True)
                                 obj.hide_render = True

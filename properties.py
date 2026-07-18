@@ -80,15 +80,15 @@ class MESHLAB_props_filters(PropertyGroup):
 
     # --- PROPRIEDADES GLOBAIS (Não resetam ao trocar de filtro) ---
     global_prev_mesh_action: EnumProperty(
-        name="Previous Addon Mesh",
-        description="Choose what to do with previously generated PyMeshLab objects.",
+        name="Action on Selected",
+        description="Choose what to do with the originally selected object.",
         items=[
-            ("KEEP", "Keep", "Keeps all selected objects untouched"),
-            ("HIDE", "Hide", "Hides selected objects that start with 'PyMeshLab_'"),
+            ("KEEP", "Keep", "Keeps the selected object untouched"),
+            ("HIDE", "Hide", "Hides the selected object"),
             (
                 "DELETE",
                 "Delete",
-                "Permanently deletes selected objects that start with 'PyMeshLab_'",
+                "Permanently deletes the selected object",
             ),
         ],
         default="HIDE",
@@ -111,8 +111,6 @@ class MESHLAB_props_filters(PropertyGroup):
         ],
         default="DISK",
     )
-
-    hide_original: BoolProperty(name="Hide Original", default=True)
 
     show_object_settings: BoolProperty(name="Object Settings", default=False)
 
