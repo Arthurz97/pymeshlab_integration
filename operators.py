@@ -85,19 +85,18 @@ class MESHLAB_OT_apply_filter(Operator):
 
         try:
             with tempfile.TemporaryDirectory() as tmpdir:
-                output_path = os.path.join(tmpdir, "output.obj")
+                output_path = os.path.join(tmpdir, "output.ply")
                 ms = pymeshlab.MeshSet()
 
                 # EXPORTAÇÃO (DISK): Salva a malha selecionada temporariamente para ser lida pelo PyMeshLab
                 if requires_selection and has_mesh:
-                    input_path = os.path.join(tmpdir, "input.obj")
+                    input_path = os.path.join(tmpdir, "input.ply")
                     bpy.ops.object.select_all(action="DESELECT")
                     original_obj.select_set(True)
-                    bpy.ops.wm.obj_export(
-                        filepath=input_path,
-                        export_selected_objects=True,
-                        export_materials=False,
-                        global_scale=1.0,
+
+                    # Exporta em formato PLY usando o operador nativo, economizando RAM e evitando problemas de rotação
+                    bpy.ops.wm.ply_export(
+                        filepath=input_path, export_selected_objects=True
                     )
                     ms.load_new_mesh(input_path)
 
@@ -133,7 +132,7 @@ class MESHLAB_OT_apply_filter(Operator):
                 ms.save_current_mesh(output_path)
 
                 # SEGURANÇA DE FALHA: Se o PyMeshLab falhar silenciosamente (ex: malha impossível de dar remesh),
-                # bloqueia o erro do Blender de não encontrar o 'output.obj'.
+                # bloqueia o erro do Blender de não encontrar o 'output.ply'.
                 if not os.path.exists(output_path):
                     self.report(
                         {"ERROR"},
@@ -142,7 +141,7 @@ class MESHLAB_OT_apply_filter(Operator):
                     return {"CANCELLED"}
 
                 # IMPORTAÇÃO DA MALHA PROCESSADA
-                bpy.ops.wm.obj_import(filepath=output_path)
+                bpy.ops.wm.ply_import(filepath=output_path)
 
                 if context.selected_objects:
                     new_obj = context.selected_objects[0]
@@ -150,10 +149,8 @@ class MESHLAB_OT_apply_filter(Operator):
                     self.report({"ERROR"}, "Failed to import the processed mesh.")
                     return {"CANCELLED"}
 
-                # CORREÇÃO DE ROTAÇÃO OBJ: O importador OBJ do Blender vira a malha em 90 graus no eixo X.
-                # Esta matriz corrige isso na raiz dos vértices (data) para alinhar perfeitamente com a malha original.
-                correction_matrix = Matrix.Rotation(math.radians(90), 4, "X")
-                new_obj.data.transform(correction_matrix)
+                # A matriz de correção de 90 graus no eixo X foi removida daqui,
+                # pois o importador PLY nativo mantém a orientação original correta.
 
                 if requires_selection and has_mesh:
                     # RESTAURAÇÃO DE MATRIZ: Se o objeto original tinha escala ou rotação aplicadas em Object Mode,
@@ -182,7 +179,7 @@ class MESHLAB_OT_apply_filter(Operator):
                 new_obj.select_set(True)
                 context.view_layer.objects.active = new_obj
 
-                # LIMPEZA DE ATRIBUTOS: O PyMeshLab/OBJ pode gerar sujeira como normais travadas ou UVs residuais.
+                # LIMPEZA DE ATRIBUTOS: O PyMeshLab/PLY pode gerar sujeira como normais travadas ou UVs residuais.
                 if new_obj.type == "MESH" and new_obj.data:
                     attrs_to_remove = filter_config.get("remove_attributes", [])
                     for attr in attrs_to_remove:

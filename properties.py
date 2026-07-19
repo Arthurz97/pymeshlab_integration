@@ -153,7 +153,7 @@ class MESHLAB_props_filters(PropertyGroup):
             (
                 "DISK",
                 "Disk (Export/Import)",
-                "Safest and most stable method using .obj files",
+                "Safest and most stable method using .ply files",
             ),
             (
                 "MEMORY",
