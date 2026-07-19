@@ -13,54 +13,36 @@ from . import utils
 
 
 # --- NOVAS FUNÇÕES PARA SINCRONIZAR ABSOLUTO E PORCENTAGEM ---
-def make_update_abs(abs_name, perc_name):
-    def update(self, context):
-        if self.get("_updating"):
-            return
-        self["_updating"] = True
-        try:
-            obj = context.active_object
-            diag = 1.0
-            if obj and obj.type == "MESH":
-                diag = obj.dimensions.length  # Calcula a diagonal perfeitamente
-                if diag == 0:
-                    diag = 1.0
-            val_abs = getattr(self, abs_name)
+def make_abs_get(perc_name):
+    def get_func(self):
+        obj = bpy.context.active_object
+        diag = 1.0
+        if obj and obj.type == "MESH":
+            diag = obj.dimensions.length
+            if diag == 0:
+                diag = 1.0
+        # Lê a porcentagem e calcula o valor absoluto em tempo real
+        val_perc = getattr(self, perc_name, 1.0)
+        return (val_perc / 100.0) * diag
 
-            if val_abs > diag:
-                val_abs = diag
-                setattr(self, abs_name, val_abs)
-            elif val_abs < 0.0:
-                val_abs = 0.0
-                setattr(self, abs_name, val_abs)
-
-            val_perc = (val_abs / diag) * 100.0
-            setattr(self, perc_name, val_perc)
-        finally:
-            self["_updating"] = False
-
-    return update
+    return get_func
 
 
-def make_update_perc(abs_name, perc_name):
-    def update(self, context):
-        if self.get("_updating"):
-            return
-        self["_updating"] = True
-        try:
-            obj = context.active_object
-            diag = 1.0
-            if obj and obj.type == "MESH":
-                diag = obj.dimensions.length
-                if diag == 0:
-                    diag = 1.0
-            val_perc = getattr(self, perc_name)
-            val_abs = (val_perc / 100.0) * diag
-            setattr(self, abs_name, val_abs)
-        finally:
-            self["_updating"] = False
+def make_abs_set(perc_name):
+    def set_func(self, value):
+        obj = bpy.context.active_object
+        diag = 1.0
+        if obj and obj.type == "MESH":
+            diag = obj.dimensions.length
+            if diag == 0:
+                diag = 1.0
+        # Trava o valor digitado entre 0 e o tamanho máximo da diagonal
+        val_abs = max(0.0, min(value, diag))
+        # Calcula a nova porcentagem e salva na propriedade original
+        val_perc = (val_abs / diag) * 100.0
+        setattr(self, perc_name, val_perc)
 
-    return update
+    return set_func
 
 
 def update_ui_and_defaults(self, context):
@@ -266,10 +248,10 @@ def create_dynamic_properties_class():
             props[abs_name] = FloatProperty(
                 name="world unit",
                 description=kwargs.get("description", ""),
-                default=0.0,
                 precision=6,
                 step=1,
-                update=make_update_abs(abs_name, perc_name),
+                get=make_abs_get(perc_name),
+                set=make_abs_set(perc_name),
             )
 
             props[perc_name] = FloatProperty(
@@ -280,7 +262,6 @@ def create_dynamic_properties_class():
                 step=50,
                 min=0.0,
                 max=100.0,
-                update=make_update_perc(abs_name, perc_name),
             )
 
         elif p_type == "enum":

@@ -8,11 +8,11 @@
         "requires_selection": true,
         "shade_flat": true,
         "remove_attributes": [
-            "custom_normal",
-            "material_index",
-            "sharp_edge",
-            "UVMap",
-            "sharp_face"
+            "quality",
+            "texture_u",
+            "texture_v",
+            "sharp_face",
+            "Col"
         ],
         "params": {
             "iterations": {

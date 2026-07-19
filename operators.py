@@ -81,6 +81,23 @@ class MESHLAB_OT_apply_filter(Operator):
             )
             return {"CANCELLED"}
 
+        # ---- TRAVA DE SEGURANÇA (ANTES DA EXPORTAÇÃO) ----
+        # Bloqueia a execução imediatamente se a caixa estiver marcada mas a seleção estiver vazia.
+        unique_sel_name = f"{filt}_selectedonly"
+        is_selected_only_checked = hasattr(dynamic_props, unique_sel_name) and getattr(
+            dynamic_props, unique_sel_name
+        )
+
+        if is_selected_only_checked and original_obj and original_obj.type == "MESH":
+            # Checa os polígonos. Como o Object Mode é forçado no início da função, p.select está sempre atualizado.
+            has_selection = any(p.select for p in original_obj.data.polygons)
+            if not has_selection:
+                self.report(
+                    {"WARNING"},
+                    "Opção 'Remesh only selected faces' ativa, mas nenhuma face está selecionada. Cancele o script ou selecione faces no Edit Mode.",
+                )
+                return {"CANCELLED"}
+
         apply_prev_mesh_action = props.global_prev_mesh_action
 
         try:
@@ -88,17 +105,67 @@ class MESHLAB_OT_apply_filter(Operator):
                 output_path = os.path.join(tmpdir, "output.ply")
                 ms = pymeshlab.MeshSet()
 
+                # LEITURA PRÉVIA DO PARÂMETRO 'selectedonly'
+                is_selected_only = False
+                unique_sel_name = f"{filt}_selectedonly"
+                if hasattr(dynamic_props, unique_sel_name):
+                    is_selected_only = getattr(dynamic_props, unique_sel_name)
+
                 # EXPORTAÇÃO (DISK): Salva a malha selecionada temporariamente para ser lida pelo PyMeshLab
                 if requires_selection and has_mesh:
                     input_path = os.path.join(tmpdir, "input.ply")
                     bpy.ops.object.select_all(action="DESELECT")
                     original_obj.select_set(True)
 
-                    # Exporta em formato PLY usando o operador nativo, economizando RAM e evitando problemas de rotação
-                    bpy.ops.wm.ply_export(
-                        filepath=input_path, export_selected_objects=True
-                    )
+                    # Sincroniza a memória do Blender
+                    context.view_layer.update()
+                    original_obj.data.update()
+
+                    # ---- 1. PROTEÇÃO DE CORES E TRANSFERÊNCIA DE SELEÇÃO ----
+                    temp_color = None
+                    export_kwargs = {
+                        "filepath": input_path,
+                        "export_selected_objects": True,
+                    }
+
+                    if is_selected_only:
+                        # USAMOS POINT (Vértices) porque o PLY C++ garante essa exportação
+                        temp_color = original_obj.data.color_attributes.new(
+                            name="Col", type="BYTE_COLOR", domain="POINT"
+                        )
+                        original_obj.data.attributes.active_color = temp_color
+
+                        # Extrai a seleção diretamente dos vértices
+                        colors = [
+                            val
+                            for v in original_obj.data.vertices
+                            for val in (
+                                (1.0, 1.0, 1.0, 1.0)
+                                if v.select
+                                else (0.0, 0.0, 0.0, 1.0)
+                            )
+                        ]
+                        temp_color.data.foreach_set("color", colors)
+
+                        export_kwargs["export_colors"] = "SRGB"
+
+                    # Exporta dinamicamente passando os parâmetros seguros
+                    bpy.ops.wm.ply_export(**export_kwargs)
+
+                    # Limpeza imediata para manter seu objeto original intacto
+                    if temp_color:
+                        original_obj.data.color_attributes.remove(temp_color)
+
                     ms.load_new_mesh(input_path)
+
+                    # ---- 2. TRADUÇÃO DA SELEÇÃO NO PYMESHLAB ----
+                    if is_selected_only:
+                        # Seleciona os vértices pintados de branco (r > 127)
+                        ms.compute_selection_by_condition_per_vertex(
+                            condselect="(r > 127)"
+                        )
+                        # Propaga a seleção dos vértices para as faces (Método Inclusivo Estável)
+                        ms.compute_selection_transfer_vertex_to_face()
 
                 # LEITURA DE PARÂMETROS DINÂMICOS DA UI
                 params = {}
