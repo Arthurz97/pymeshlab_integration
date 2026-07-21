@@ -1,9 +1,24 @@
 import bpy
-from bpy.types import Panel
-from . import utils
 
 
-class MESHLAB_PT_main_panel(Panel):
+class MESHLAB_OT_reset_filter_settings(bpy.types.Operator):
+    bl_idname = "meshlab.reset_filter_settings"
+    bl_label = "Reset Filter Settings"
+    bl_description = "Reset filter parameters to default values."
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        ui_state = context.scene.meshlab_ui_state
+        active_filter = ui_state.filter_name
+        props = getattr(context.scene, f"ml_{active_filter}", None)
+        if props:
+            for key in props.bl_rna.properties.keys():
+                if key not in ["rna_type", "name"]:
+                    props.property_unset(key)
+        return {"FINISHED"}
+
+
+class MESHLAB_PT_main_panel(bpy.types.Panel):
     bl_label = "PyMeshLab Integration"
     bl_idname = "MESHLAB_PT_main_panel"
     bl_space_type = "VIEW_3D"
@@ -12,114 +27,73 @@ class MESHLAB_PT_main_panel(Panel):
 
     def draw(self, context):
         layout = self.layout
-        props = context.scene.meshlab_props
-        dynamic_props = context.scene.meshlab_dynamic_props
+        prefs = context.scene.meshlab_prefs
+        addon_prefs = context.preferences.addons[__package__].preferences
+        ui_state = context.scene.meshlab_ui_state
 
-        cat = props.category
-        filt = props.filter_name
+        layout.prop(ui_state, "category", text="Category")
+        layout.prop(ui_state, "filter_name", text="Filter")
 
-        filter_config = {}
-        if (
-            filt
-            and filt != "NONE"
-            and cat in utils.CATEGORIES
-            and filt in utils.CATEGORIES[cat]
-        ):
-            filter_config = utils.CATEGORIES[cat][filt]
+        active_filter = ui_state.filter_name
+        if active_filter == "NONE":
+            return
 
-        filter_params_dict = filter_config.get("params", {})
-
-        # --- 1. SELETORES DE CATEGORIA E FILTRO ---
-        layout.prop(props, "category", text="Category")
-        layout.prop(props, "filter_name", text="Filter")
+        props = getattr(context.scene, f"ml_{active_filter}", None)
         layout.separator()
 
-        # Só exibe os controles se houver um filtro válido
-        if filt and filt != "NONE" and filter_config:
-
-            # --- 2. RESET FILTER SETTINGS (Fora da caixa preta, acima dos parâmetros) ---
+        if props:
             layout.operator(
                 "meshlab.reset_filter_settings", text="Reset Filter Settings"
             )
-
-            # --- 3. CAIXA DE PARÂMETROS DO FILTRO ---
             box_filter = layout.box()
             box_filter.label(text="Parameters:", icon="TOOL_SETTINGS")
 
-            has_params = False
+            processed = set()
 
-            # Desenha os parâmetros dinâmicos puros
-            for p_name, p_info in filter_params_dict.items():
-                unique_p_name = f"{filt}_{p_name}"
-                ui_label = p_info.get("name", p_name)
+            for key in props.__class__.__annotations__.keys():
+                if key in processed:
+                    continue
 
-                if p_info.get("type") == "PercentageValue":
-                    abs_name = f"{unique_p_name}_abs"
-                    perc_name = f"{unique_p_name}_perc"
+                if key.endswith("_abs"):
+                    base = key.replace("_abs", "")
+                    perc_key = f"{base}_perc"
+                    ui_label = props.bl_rna.properties[perc_key].name
 
-                    if hasattr(dynamic_props, perc_name):
-                        has_params = True
+                    diag = 1.0
+                    obj = context.active_object
+                    if obj and obj.type == "MESH":
+                        diag = obj.dimensions.length
+                        if diag == 0:
+                            diag = 1.0
 
-                        diag = 1.0
-                        obj = context.active_object
-                        if obj and obj.type == "MESH":
-                            diag = obj.dimensions.length
-                            if diag == 0:
-                                diag = 1.0
+                    box_filter.label(text=f"{ui_label} (abs and %)")
+                    row = box_filter.row(align=True)
 
-                        box_filter.label(text=f"{ui_label} (abs and %)")
-                        row = box_filter.row(align=True)
+                    col_abs = row.column()
+                    col_abs.label(text="world unit")
+                    col_abs.prop(props, key, text="")
 
-                        col_abs = row.column()
-                        col_abs.label(text="world unit")
-                        col_abs.prop(dynamic_props, abs_name, text="")
+                    col_perc = row.column()
+                    col_perc.label(text=f"perc on(0 .. {diag:.4f})")
+                    col_perc.prop(props, perc_key, text="")
 
-                        col_perc = row.column()
-                        col_perc.label(text=f"perc on(0 .. {diag:.4f})")
-                        col_perc.prop(dynamic_props, perc_name, text="")
+                    processed.add(key)
+                    processed.add(perc_key)
 
-                elif hasattr(dynamic_props, unique_p_name):
-                    has_params = True
+                elif not key.endswith("_perc"):
+                    ui_label = props.bl_rna.properties[key].name
                     row = box_filter.row()
-                    if p_info.get("type") == "enum":
-                        row.prop(
-                            dynamic_props, unique_p_name, text=ui_label, expand=True
-                        )
-                    else:
-                        row.prop(dynamic_props, unique_p_name, text=ui_label)
+                    row.prop(props, key, text=ui_label)
+                    processed.add(key)
 
-            # --- 4. BOTÃO APPLY (Abaixo da caixa de parâmetros) ---
             layout.separator()
             col = layout.column()
-            col.scale_y = 1.2
-            col.operator("meshlab.apply_filter", text="Apply Filter", icon="PLAY")
+            col.scale_y = 1.5
+            op = col.operator("meshlab.apply_filter", text="Apply Filter", icon="PLAY")
+            op.filter_id = active_filter
             layout.separator()
 
-        # --- 5. MENU DE EXPANSÃO (OBJECT SETTINGS) ---
-        row = layout.row()
-        icon = "TRIA_DOWN" if props.show_object_settings else "TRIA_RIGHT"
-        row.prop(
-            props,
-            "show_object_settings",
-            text="Object Settings",
-            icon=icon,
-            emboss=False,
-        )
-
-        # Só mostra os botões se o menu estiver expandido
-        if props.show_object_settings:
-            # --- 6. RESET OBJECT SETTINGS (Abaixo do texto de expansão, acima do transfer, FORA da caixa) ---
-            layout.operator(
-                "meshlab.reset_object_settings", text="Reset Object Settings"
-            )
-
-            # --- 7. CAIXA PRETA DOS CONTROLES DO OBJETO ---
-            box_obj = layout.box()
-            box_obj.prop(props, "transfer_method", text="Transfer")
-
-            # Texto descritivo padrão do Blender para clareza
-            box_obj.separator()
-            box_obj.label(text="Action on Selected:")
-
-            col_action = box_obj.column(align=True)
-            col_action.prop(props, "global_prev_mesh_action", expand=True)
+        box_obj = layout.box()
+        box_obj.label(text="Action on Selected:")
+        col_action = box_obj.column(align=True)
+        col_action.prop(prefs, "global_prev_mesh_action", expand=True)

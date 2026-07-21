@@ -1,81 +1,72 @@
-# Bloco essencial para recarregar todos os módulos quando você aperta F3 no Blender
-if "bpy" in locals():
-    import importlib
+import bpy
+from . import base_filter
+from . import preferences
+from . import ui
+from . import io_handlers
+from .filters import filters_create
+from .filters import filters_meshing
 
-    importlib.reload(utils)
-    importlib.reload(properties)
-    importlib.reload(operators)
-    importlib.reload(ui)
-else:
-    import bpy
-    from bpy.props import PointerProperty
-    from bpy.app.handlers import persistent
-    from . import utils
-    from . import properties
-    from . import operators
-    from . import ui
-
-DynamicPropertyGroup = None
-classes_to_register = []
-
-
-@persistent
-def addon_loaded_handler(dummy):
-    if addon_loaded_handler in bpy.app.handlers.load_post:
-        bpy.app.handlers.load_post.remove(addon_loaded_handler)
-    if bpy.context.scene.meshlab_props.category:
-        utils.set_filter_defaults(bpy.context)
+classes = (
+    preferences.MESHLAB_preferences,
+    preferences.MESHLAB_props_preferences,
+    preferences.MESHLAB_props_ui_state,
+    base_filter.MESHLAB_OT_apply_filter,
+    ui.MESHLAB_OT_reset_filter_settings,
+    ui.MESHLAB_PT_main_panel,
+    filters_create.MESHLAB_PG_create_cube,
+    filters_create.MESHLAB_PG_create_sphere,
+    filters_create.MESHLAB_PG_create_sphere_cap,
+    filters_create.MESHLAB_PG_create_torus,
+    filters_create.MESHLAB_PG_create_annulus,
+    filters_create.MESHLAB_PG_create_cone,
+    filters_meshing.MESHLAB_PG_meshing_isotropic_explicit_remeshing,
+)
 
 
 def register():
-    global classes_to_register, DynamicPropertyGroup
-
-    # Carrega os JSONs
-    utils.load_filter_definitions()
-
-    # Cria as propriedades dinâmicas
-    DynamicPropertyGroup = properties.create_dynamic_properties_class()
-
-    # Lista de registro
-    classes_to_register = [
-        properties.MESHLAB_props_filters,
-        operators.MESHLAB_OT_reset_filter_settings,
-        operators.MESHLAB_OT_reset_object_settings,
-        operators.MESHLAB_OT_apply_filter,
-        ui.MESHLAB_PT_main_panel,
-    ]
-
-    bpy.utils.register_class(DynamicPropertyGroup)
-    for cls in classes_to_register:
+    for cls in classes:
         bpy.utils.register_class(cls)
 
-    bpy.types.Scene.meshlab_props = PointerProperty(
-        type=properties.MESHLAB_props_filters
+    bpy.types.Scene.meshlab_prefs = bpy.props.PointerProperty(
+        type=preferences.MESHLAB_props_preferences
     )
-    bpy.types.Scene.meshlab_dynamic_props = PointerProperty(type=DynamicPropertyGroup)
-    bpy.app.handlers.load_post.append(addon_loaded_handler)
+    bpy.types.Scene.meshlab_ui_state = bpy.props.PointerProperty(
+        type=preferences.MESHLAB_props_ui_state
+    )
+
+    bpy.types.Scene.ml_create_cube = bpy.props.PointerProperty(
+        type=filters_create.MESHLAB_PG_create_cube
+    )
+    bpy.types.Scene.ml_create_sphere = bpy.props.PointerProperty(
+        type=filters_create.MESHLAB_PG_create_sphere
+    )
+    bpy.types.Scene.ml_create_sphere_cap = bpy.props.PointerProperty(
+        type=filters_create.MESHLAB_PG_create_sphere_cap
+    )
+    bpy.types.Scene.ml_create_torus = bpy.props.PointerProperty(
+        type=filters_create.MESHLAB_PG_create_torus
+    )
+    bpy.types.Scene.ml_create_annulus = bpy.props.PointerProperty(
+        type=filters_create.MESHLAB_PG_create_annulus
+    )
+    bpy.types.Scene.ml_create_cone = bpy.props.PointerProperty(
+        type=filters_create.MESHLAB_PG_create_cone
+    )
+    bpy.types.Scene.ml_meshing_isotropic_explicit_remeshing = bpy.props.PointerProperty(
+        type=filters_meshing.MESHLAB_PG_meshing_isotropic_explicit_remeshing
+    )
 
 
 def unregister():
-    global DynamicPropertyGroup
+    for cls in reversed(classes):
+        bpy.utils.unregister_class(cls)
 
-    if addon_loaded_handler in bpy.app.handlers.load_post:
-        bpy.app.handlers.load_post.remove(addon_loaded_handler)
-
-    if hasattr(bpy.types.Scene, "meshlab_dynamic_props"):
-        del bpy.types.Scene.meshlab_dynamic_props
-    if hasattr(bpy.types.Scene, "meshlab_props"):
-        del bpy.types.Scene.meshlab_props
-
-    for cls in reversed(classes_to_register):
-        if hasattr(bpy.utils, "unregister_class"):
-            bpy.utils.unregister_class(cls)
-
-    if DynamicPropertyGroup:
-        if hasattr(bpy.utils, "unregister_class"):
-            bpy.utils.unregister_class(DynamicPropertyGroup)
-        DynamicPropertyGroup = None
-
-
-if __name__ == "__main__":
-    register()
+    del bpy.types.Scene.meshlab_prefs
+    del bpy.types.Scene.meshlab_ui_state
+    del bpy.types.Scene.ml_create_cube
+    del bpy.types.Scene.ml_create_sphere
+    del bpy.types.Scene.ml_create_sphere_cap
+    del bpy.types.Scene.ml_create_torus
+    del bpy.types.Scene.ml_create_annulus
+    del bpy.types.Scene.ml_create_cone
+    del bpy.types.Scene.ml_meshing_isotropic_explicit_remeshing

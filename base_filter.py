@@ -1,66 +1,19 @@
-import bpy, os, tempfile, math
-from bpy.types import Operator
-from mathutils import Matrix
+import bpy, os, tempfile, gc, math
 import pymeshlab
-from . import utils
 
 
-class MESHLAB_OT_reset_filter_settings(Operator):
-    bl_idname = "meshlab.reset_filter_settings"
-    bl_label = "Reset Filter Settings"
-    bl_description = "Reset filter parameters to default values."
-    bl_options = {"REGISTER", "UNDO"}
-
-    @classmethod
-    def poll(cls, context):
-        props = context.scene.meshlab_props
-        return props.category != "NONE" and props.filter_name != "NONE"
-
-    def execute(self, context):
-        utils.set_filter_defaults(context)
-        return {"FINISHED"}
-
-
-class MESHLAB_OT_reset_object_settings(Operator):
-    bl_idname = "meshlab.reset_object_settings"
-    bl_label = "Reset Object Settings"
-    bl_description = "Reset global object parameters."
-    bl_options = {"REGISTER", "UNDO"}
-
-    def execute(self, context):
-        props = context.scene.meshlab_props
-        props.global_prev_mesh_action = "HIDE"
-        props.transfer_method = "DISK"
-        return {"FINISHED"}
-
-
-class MESHLAB_OT_apply_filter(Operator):
-    bl_idname = "meshlab.apply_filter"
-    bl_label = "Apply MeshLab Filter"
-    bl_description = "Apply the selected filter using PyMeshLab."
-    bl_options = {"REGISTER", "UNDO"}
+class MeshLabFilterBase:
+    pymeshlab_filter = ""
+    requires_selection = False
+    shade_flat = False
+    remove_attributes = []
 
     @classmethod
-    def poll(cls, context):
-        return context.area and context.area.type == "VIEW_3D"
-
-    def execute(self, context):
+    def apply_filter(cls, context, props):
         # SEGURANÇA DE MODO: Garante que o Blender esteja no modo Objeto.
         # Evita crashes caso o usuário tente rodar o filtro de dentro do Edit Mode.
         if context.active_object and context.active_object.mode != "OBJECT":
             bpy.ops.object.mode_set(mode="OBJECT")
-
-        props = context.scene.meshlab_props
-        dynamic_props = context.scene.meshlab_dynamic_props
-        cat = props.category
-        filt = props.filter_name
-
-        if filt == "NONE" or not filt:
-            self.report({"WARNING"}, "No filter selected.")
-            return {"CANCELLED"}
-
-        filter_config = utils.CATEGORIES[cat][filt]
-        requires_selection = filter_config.get("requires_selection", True)
 
         original_obj = context.active_object
         has_mesh = original_obj and original_obj.type == "MESH"
@@ -69,50 +22,40 @@ class MESHLAB_OT_apply_filter(Operator):
         # TRAVA DE MULTI-SELEÇÃO: O PyMeshLab em scripts simples pode se perder com múltiplos inputs.
         # Esta trava garante que a lógica de nomeação e matriz funcione perfeitamente sobre 1 único alvo.
         if len(original_selected_objs) > 1:
-            self.report(
-                {"ERROR"},
+            return (
+                "CANCELLED",
                 "Múltiplas seleções não são suportadas. Selecione apenas 1 objeto.",
             )
-            return {"CANCELLED"}
 
-        if requires_selection and (not original_selected_objs or not has_mesh):
-            self.report(
-                {"ERROR"}, "This filter requires exactly one active mesh selection."
+        if cls.requires_selection and (not original_selected_objs or not has_mesh):
+            return (
+                "CANCELLED",
+                "This filter requires exactly one active mesh selection.",
             )
-            return {"CANCELLED"}
 
         # ---- TRAVA DE SEGURANÇA (ANTES DA EXPORTAÇÃO) ----
         # Bloqueia a execução imediatamente se a caixa estiver marcada mas a seleção estiver vazia.
-        unique_sel_name = f"{filt}_selectedonly"
-        is_selected_only_checked = hasattr(dynamic_props, unique_sel_name) and getattr(
-            dynamic_props, unique_sel_name
-        )
-
-        if is_selected_only_checked and original_obj and original_obj.type == "MESH":
+        is_selected_only = getattr(props, "selectedonly", False)
+        if is_selected_only and has_mesh:
             # Checa os polígonos. Como o Object Mode é forçado no início da função, p.select está sempre atualizado.
             has_selection = any(p.select for p in original_obj.data.polygons)
             if not has_selection:
-                self.report(
-                    {"WARNING"},
-                    "Opção 'Remesh only selected faces' ativa, mas nenhuma face está selecionada. Cancele o script ou selecione faces no Edit Mode.",
+                return (
+                    "CANCELLED",
+                    "Opção 'Remesh only selected faces' ativa, mas nenhuma face está selecionada no Edit Mode.",
                 )
-                return {"CANCELLED"}
 
-        apply_prev_mesh_action = props.global_prev_mesh_action
+        prefs = context.scene.meshlab_prefs
+        apply_prev_mesh_action = prefs.global_prev_mesh_action
 
         try:
             with tempfile.TemporaryDirectory() as tmpdir:
                 output_path = os.path.join(tmpdir, "output.ply")
                 ms = pymeshlab.MeshSet()
 
-                # LEITURA PRÉVIA DO PARÂMETRO 'selectedonly'
-                is_selected_only = False
-                unique_sel_name = f"{filt}_selectedonly"
-                if hasattr(dynamic_props, unique_sel_name):
-                    is_selected_only = getattr(dynamic_props, unique_sel_name)
-
-                # EXPORTAÇÃO (DISK): Salva a malha selecionada temporariamente para ser lida pelo PyMeshLab
-                if requires_selection and has_mesh:
+                # EXPORTAÇÃO (DISK): Literalmente a cópia do script original
+                # Salva a malha selecionada temporariamente para ser lida pelo PyMeshLab
+                if cls.requires_selection and has_mesh:
                     input_path = os.path.join(tmpdir, "input.ply")
                     bpy.ops.object.select_all(action="DESELECT")
                     original_obj.select_set(True)
@@ -146,7 +89,6 @@ class MESHLAB_OT_apply_filter(Operator):
                             )
                         ]
                         temp_color.data.foreach_set("color", colors)
-
                         export_kwargs["export_colors"] = "SRGB"
 
                     # Exporta dinamicamente passando os parâmetros seguros
@@ -167,77 +109,70 @@ class MESHLAB_OT_apply_filter(Operator):
                         # Propaga a seleção dos vértices para as faces (Método Inclusivo Estável)
                         ms.compute_selection_transfer_vertex_to_face()
 
-                # LEITURA DE PARÂMETROS DINÂMICOS DA UI
+                # --- LEITURA DE PARÂMETROS ---
                 params = {}
-                filter_params_dict = filter_config.get("params", {})
+                for key in cls.__annotations__.keys():
+                    if key.endswith("_abs"):
+                        continue  # Ignora a propriedade absoluta (usada apenas para a UI)
 
-                for p_name, p_info in filter_params_dict.items():
-                    unique_p_name = f"{filt}_{p_name}"
-                    p_type = p_info.get("type")
+                    if key.endswith("_perc"):
+                        # ESSENCIAL: Extrai o nome real do parâmetro para o PyMeshLab (ex: 'targetlen_perc' -> 'targetlen')
+                        real_key = key.replace("_perc", "")
+                        val = getattr(props, key)
+                        params[real_key] = pymeshlab.PercentageValue(float(val))
+                    else:
+                        params[key] = getattr(props, key)
 
-                    # Lógica especial para PercentageValue: no Blender separamos em '_abs' e '_perc'
-                    # para melhorar a UI, mas para o PyMeshLab mandamos exclusivamente o valor percentual limpo.
-                    if p_type == "PercentageValue":
-                        perc_name = f"{unique_p_name}_perc"
-                        if hasattr(dynamic_props, perc_name):
-                            val = getattr(dynamic_props, perc_name)
-                            params[p_name] = pymeshlab.PercentageValue(float(val))
+                # EXECUÇÃO: Aplica o filtro com os parâmetros mapeados
+                ms.apply_filter(cls.pymeshlab_filter, **params)
 
-                    elif hasattr(dynamic_props, unique_p_name):
-                        value = getattr(dynamic_props, unique_p_name)
-
-                        if p_type == "AbsoluteValue":
-                            try:
-                                params[p_name] = pymeshlab.AbsoluteValue(float(value))
-                            except:
-                                params[p_name] = value
-                        else:
-                            params[p_name] = value
-
-                # EXECUÇÃO: Aplica o filtro com os parâmetros mapeados e salva no disco.
-                ms.apply_filter(filt, **params)
+                # Execução e Salvamento IDÊNTICOS ao operators.py antigo. Sem flags inventadas.
                 ms.save_current_mesh(output_path)
 
-                # SEGURANÇA DE FALHA: Se o PyMeshLab falhar silenciosamente (ex: malha impossível de dar remesh),
-                # bloqueia o erro do Blender de não encontrar o 'output.ply'.
-                if not os.path.exists(output_path):
-                    self.report(
-                        {"ERROR"},
-                        "PyMeshLab falhou ao gerar a malha. Verifique os parâmetros.",
-                    )
-                    return {"CANCELLED"}
+                # SEGURANÇA DE FALHA E LIMPEZA DE MEMÓRIA (C++)
+                ms.clear()
+                del ms
+                gc.collect()
 
-                # IMPORTAÇÃO DA MALHA PROCESSADA
+                if not os.path.exists(output_path):
+                    return (
+                        "CANCELLED",
+                        "O motor C++ falhou silenciosamente e nenhuma malha foi gerada.",
+                    )
+
+                # IMPORTAÇÃO DA MALHA PROCESSADA: Importação nativa sem interferências
                 bpy.ops.wm.ply_import(filepath=output_path)
 
                 if context.selected_objects:
                     new_obj = context.selected_objects[0]
                 else:
-                    self.report({"ERROR"}, "Failed to import the processed mesh.")
-                    return {"CANCELLED"}
+                    return "CANCELLED", "Failed to import the processed mesh."
 
-                # A matriz de correção de 90 graus no eixo X foi removida daqui,
-                # pois o importador PLY nativo mantém a orientação original correta.
-
-                if requires_selection and has_mesh:
+                if cls.requires_selection and has_mesh:
                     # RESTAURAÇÃO DE MATRIZ: Se o objeto original tinha escala ou rotação aplicadas em Object Mode,
-                    # a exportação/importação bagunça isso. Esse bloco injeta a World Matrix exata do objeto original no novo.
+                    # a exportação/importação bagunça isso. Esse bloco injeta a World Matrix exata do original.
                     new_obj.data.transform(original_obj.matrix_world.inverted())
                     new_obj.matrix_world = original_obj.matrix_world.copy()
 
                     # NOMEAÇÃO AUTOMÁTICA (Filtros de edição):
-                    # O ".split" limpa sufixos antigos (evitando Cube_pymeshlab_pymeshlab).
-                    # Ao injetar "_pymeshlab" no fim, o próprio Blender gerencia sufixos ".001", ".002" caso haja nomes duplicados na cena.
                     base_name = original_obj.name.split("_pymeshlab")[0]
                     new_obj.name = f"{base_name}_pymeshlab"
-
                 else:
-                    # NOMEAÇÃO AUTOMÁTICA (Filtros de criação como o Primitive Cube):
-                    obj_name = filter_config.get("object_name", filt)
+                    # NOMEAÇÃO AUTOMÁTICA E ROTAÇÃO PARA PRIMITIVAS (Filtros de Criação)
+                    obj_name = cls.pymeshlab_filter.replace("create_", "").title()
                     new_obj.name = f"{obj_name}_pymeshlab"
                     new_obj.location = context.scene.cursor.location
-                    new_obj.rotation_euler = (0, 0, 0)
+
+                    # Aplicação da Rotação Corrigida Positiva para compensar o eixo Y-up gerado pelo PyMeshLab
+                    new_obj.rotation_euler = (math.radians(90), 0, 0)
                     new_obj.scale = (1, 1, 1)
+
+                    # RESET: Apply Transform (Rotate & Scale) para resetar a orientação base no Blender
+                    context.view_layer.objects.active = new_obj
+                    new_obj.select_set(True)
+                    bpy.ops.object.transform_apply(
+                        location=False, rotation=True, scale=True
+                    )
 
                 new_obj.data.update()
 
@@ -248,15 +183,14 @@ class MESHLAB_OT_apply_filter(Operator):
 
                 # LIMPEZA DE ATRIBUTOS: O PyMeshLab/PLY pode gerar sujeira como normais travadas ou UVs residuais.
                 if new_obj.type == "MESH" and new_obj.data:
-                    attrs_to_remove = filter_config.get("remove_attributes", [])
-                    for attr in attrs_to_remove:
+                    for attr in cls.remove_attributes:
                         if attr in new_obj.data.attributes:
                             new_obj.data.attributes.remove(
                                 new_obj.data.attributes[attr]
                             )
 
                 # SHADE FLAT: Aplicável a primitivas criadas ou malhas onde normais suaves causem artefatos visuais.
-                if filter_config.get("shade_flat", False):
+                if cls.shade_flat:
                     bpy.ops.object.shade_flat()
 
                 # AÇÃO SOBRE O OBJETO ANTERIOR (Keep, Hide, Delete)
@@ -269,9 +203,72 @@ class MESHLAB_OT_apply_filter(Operator):
                             elif apply_prev_mesh_action == "DELETE":
                                 bpy.data.objects.remove(obj, do_unlink=True)
 
-                self.report({"INFO"}, f"Filter '{filt}' applied successfully!")
-            return {"FINISHED"}
+            return "FINISHED", f"Filter '{cls.pymeshlab_filter}' applied successfully!"
 
         except Exception as e:
-            self.report({"ERROR"}, f"Error applying filter: {str(e)}")
+            return "CANCELLED", f"Error applying filter: {str(e)}"
+
+
+class MESHLAB_OT_apply_filter(bpy.types.Operator):
+    bl_idname = "meshlab.apply_filter"
+    bl_label = "Apply MeshLab Filter"
+    bl_description = "Apply the selected filter using PyMeshLab."
+    bl_options = {"REGISTER", "UNDO"}
+
+    # options={'HIDDEN'} esconde a variável interna do painel "Adjust Last Operation" do Blender
+    filter_id: bpy.props.StringProperty(options={"HIDDEN"})
+
+    @classmethod
+    def poll(cls, context):
+        return context.area and context.area.type == "VIEW_3D"
+
+    def execute(self, context):
+        from .filters import filters_create, filters_meshing
+
+        # Mapeamento estrito das classes de filtro ativadas pelo Menu UI
+        mapping = {
+            "create_cube": (
+                filters_create.MESHLAB_PG_create_cube,
+                context.scene.ml_create_cube,
+            ),
+            "create_sphere": (
+                filters_create.MESHLAB_PG_create_sphere,
+                context.scene.ml_create_sphere,
+            ),
+            "create_sphere_cap": (
+                filters_create.MESHLAB_PG_create_sphere_cap,
+                context.scene.ml_create_sphere_cap,
+            ),
+            "create_torus": (
+                filters_create.MESHLAB_PG_create_torus,
+                context.scene.ml_create_torus,
+            ),
+            "create_annulus": (
+                filters_create.MESHLAB_PG_create_annulus,
+                context.scene.ml_create_annulus,
+            ),
+            "create_cone": (
+                filters_create.MESHLAB_PG_create_cone,
+                context.scene.ml_create_cone,
+            ),
+            "meshing_isotropic_explicit_remeshing": (
+                filters_meshing.MESHLAB_PG_meshing_isotropic_explicit_remeshing,
+                context.scene.ml_meshing_isotropic_explicit_remeshing,
+            ),
+        }
+
+        if self.filter_id not in mapping:
+            self.report({"ERROR"}, "Filtro mapeado não existe na arquitetura.")
+            return {"CANCELLED"}
+
+        cls_def, props = mapping[self.filter_id]
+
+        # O desempacotamento extrai o status e a mensagem da classe base
+        status, msg = cls_def.apply_filter(context, props)
+
+        if status == "FINISHED":
+            self.report({"INFO"}, msg)
+            return {"FINISHED"}
+        else:
+            self.report({"ERROR"}, msg)
             return {"CANCELLED"}

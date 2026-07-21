@@ -1,0 +1,180 @@
+import bpy
+from bpy.types import PropertyGroup
+from bpy.props import FloatProperty, IntProperty
+from ..base_filter import MeshLabFilterBase
+
+# ==============================================================================
+# Arquivo criado baseado no nome das classes da api do PyMeshLab.
+# ==============================================================================
+
+
+class MESHLAB_PG_create_cube(PropertyGroup, MeshLabFilterBase):
+    pymeshlab_filter = "create_cube"
+    requires_selection = False
+    shade_flat = True
+    remove_attributes = [
+        "material_index",
+        "sharp_face",
+        "UVMap",
+        "custom_normal",
+        "sharp_edge",
+    ]
+
+    size: FloatProperty(
+        name="Size",
+        description="Create a Box, Cube, Hexahedron. You can specify the side length.",
+        subtype="DISTANCE",
+        unit="LENGTH",
+        default=1.0,
+        min=0.001,
+        max=5000.0,
+    )
+
+
+class MESHLAB_PG_create_sphere(PropertyGroup, MeshLabFilterBase):
+    pymeshlab_filter = "create_sphere"
+    requires_selection = False
+    shade_flat = True
+    remove_attributes = ["custom_normal", "material_index", "sharp_edge"]
+
+    radius: FloatProperty(
+        name="Radius",
+        description="Create a Sphere, whose topology is obtained as regular subdivision of an icosahedron.",
+        subtype="DISTANCE",
+        unit="LENGTH",
+        default=1.0,
+        min=0.001,
+    )
+    subdiv: IntProperty(
+        name="Subdiv. Level",
+        description="Number of the recursive subdivision of the surface. Default is 3 (a sphere approximation composed by 1280 faces). Admitted values are in the range 0 (an icosahedron) to 8 (a 1.3 MegaTris approximation of a sphere)",
+        default=3,
+        min=0,
+        max=8,
+    )
+
+
+class MESHLAB_PG_create_sphere_cap(PropertyGroup, MeshLabFilterBase):
+    pymeshlab_filter = "create_sphere_cap"
+    requires_selection = False
+    shade_flat = True
+    remove_attributes = ["custom_normal", "material_index", "sharp_edge"]
+
+    angle: FloatProperty(
+        name="Angle",
+        description="Angle of the cone subtending the cap. It must be < 180.",
+        default=60.0,
+        min=0.001,
+        max=179.99,
+    )
+    subdiv: IntProperty(
+        name="Subdiv. Level",
+        description="Number of the recursive subdivision of the surface. Default is 3 (a sphere approximation composed by 1280 faces). Admitted values are in the range 0 (an icosahedron) to 8 (a 1.3 MegaTris approximation of a sphere)",
+        default=3,
+        min=0,
+        max=8,
+    )
+
+
+class MESHLAB_PG_create_torus(PropertyGroup, MeshLabFilterBase):
+    pymeshlab_filter = "create_torus"
+    requires_selection = False
+    shade_flat = True
+    remove_attributes = ["custom_normal", "material_index", "sharp_edge"]
+
+    hradius: FloatProperty(
+        name="Horizontal Radius",
+        description="Radius of the whole horizontal ring of the torus",
+        subtype="DISTANCE",
+        unit="LENGTH",
+        default=3.0,
+        min=0.001,
+    )
+    vradius: FloatProperty(
+        name="Vertical Radius",
+        description="Radius of the vertical section of the ring",
+        subtype="DISTANCE",
+        unit="LENGTH",
+        default=1.0,
+        min=0.001,
+    )
+    hsubdiv: IntProperty(
+        name="Horizontal Subdivision",
+        description="Subdivision step of the ring",
+        default=24,
+        min=3,
+    )
+    vsubdiv: IntProperty(
+        name="Vertical Subdivision",
+        description="Number of sides of the polygonal approximation of the torus section",
+        default=12,
+        min=3,
+    )
+
+
+class MESHLAB_PG_create_annulus(PropertyGroup, MeshLabFilterBase):
+    pymeshlab_filter = "create_annulus"
+    requires_selection = False
+    shade_flat = True
+    remove_attributes = ["custom_normal", "material_index", "sharp_edge", "sharp_face"]
+
+    internalradius: FloatProperty(
+        name="Internal Radius",
+        description="Internal Radius of the annulus",
+        subtype="DISTANCE",
+        unit="LENGTH",
+        default=0.5,
+        min=0.001,
+    )
+    externalradius: FloatProperty(
+        name="External Radius",
+        description="Externale Radius of the annulus",
+        subtype="DISTANCE",
+        unit="LENGTH",
+        default=1.0,
+        min=0.001,
+    )
+    sides: IntProperty(
+        name="Sides",
+        description="Number of the sides of the poligonal approximation of the annulus",
+        default=32,
+        min=3,
+    )
+
+
+class MESHLAB_PG_create_cone(PropertyGroup, MeshLabFilterBase):
+    pymeshlab_filter = "create_cone"
+    requires_selection = False
+    shade_flat = True
+    remove_attributes = ["custom_normal", "material_index", "sharp_edge"]
+
+    r0: FloatProperty(
+        name="Radius 1",
+        description="Radius of the bottom circumference",
+        subtype="DISTANCE",
+        unit="LENGTH",
+        default=1.0,
+        min=0.0,
+    )
+    r1: FloatProperty(
+        name="Radius 2",
+        description="Radius of the top circumference",
+        subtype="DISTANCE",
+        unit="LENGTH",
+        default=2.0,
+        min=0.0,
+    )
+    h: FloatProperty(
+        name="Height",
+        description="Height of the Cone",
+        subtype="DISTANCE",
+        unit="LENGTH",
+        default=3.0,
+        min=0.001,
+    )
+    subdiv: IntProperty(
+        name="Side",
+        description="Number of sides of the polygonal approximation of the cone",
+        default=36,
+        min=3,
+    )
