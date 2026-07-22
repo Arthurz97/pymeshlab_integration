@@ -83,10 +83,23 @@ class MESHLAB_props_preferences(bpy.types.PropertyGroup):
     global_prev_mesh_action: EnumProperty(
         name="Action on Selected",
         description="Choose what to do with the originally selected object.",
+        # A tupla completa exige 5 elementos no Blender moderno: (ID, Nome, Descrição, Ícone, Valor Inteiro)
         items=[
-            ("KEEP", "Keep", "Keeps the selected object untouched."),
-            ("HIDE", "Hide", "Hides the selected object."),
-            ("DELETE", "Delete", "Permanently deletes the selected object."),
+            (
+                "KEEP",
+                "Keep",
+                "Keeps the selected object untouched.",
+                "OUTLINER_OB_MESH",
+                0,
+            ),
+            ("HIDE", "Hide", "Hides the selected object.", "HIDE_ON", 1),
+            (
+                "DELETE",
+                "Delete",
+                "Permanently deletes the selected object.",
+                "TRASH",
+                2,
+            ),
         ],
         default="HIDE",
     )

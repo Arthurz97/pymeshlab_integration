@@ -69,6 +69,7 @@ class MeshLabFilterBase:
                     export_kwargs = {
                         "filepath": input_path,
                         "export_selected_objects": True,
+                        "ascii_format": False,  # Força explicitamente o formato Binário para máxima performance de I/O
                     }
 
                     if is_selected_only:

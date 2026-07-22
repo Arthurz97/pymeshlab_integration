@@ -45,6 +45,27 @@ class MESHLAB_PT_main_panel(bpy.types.Panel):
             layout.operator(
                 "meshlab.reset_filter_settings", text="Reset Filter Settings"
             )
+            # --- Ação sobre o objeto e Botão de Aplicar (Movidos para o topo) ---
+
+            # Cria uma linha isolada usando o padrão 'split' nativo do Blender
+            row_action = layout.row()
+            row_action.use_property_split = True
+            row_action.use_property_decorate = (
+                False  # Oculta o ponto de keyframe de animação (opcional)
+            )
+
+            # Removemos o ':' do final do texto, pois o Blender no modo 'split' cuida da formatação sozinho.
+            row_action.prop(prefs, "global_prev_mesh_action", text="Action on Selected")
+
+            col = layout.column()
+            col.scale_y = 1.5
+            op = col.operator("meshlab.apply_filter", text="Apply Filter", icon="PLAY")
+            op.filter_id = active_filter
+
+            # Espaçamento para não grudar na caixa de parâmetros abaixo
+            layout.separator()
+
+            # --- Caixa de Parâmetros ---
             box_filter = layout.box()
             box_filter.label(text="Parameters:", icon="TOOL_SETTINGS")
 
@@ -85,15 +106,3 @@ class MESHLAB_PT_main_panel(bpy.types.Panel):
                     row = box_filter.row()
                     row.prop(props, key, text=ui_label)
                     processed.add(key)
-
-            layout.separator()
-            col = layout.column()
-            col.scale_y = 1.5
-            op = col.operator("meshlab.apply_filter", text="Apply Filter", icon="PLAY")
-            op.filter_id = active_filter
-            layout.separator()
-
-        box_obj = layout.box()
-        box_obj.label(text="Action on Selected:")
-        col_action = box_obj.column(align=True)
-        col_action.prop(prefs, "global_prev_mesh_action", expand=True)
