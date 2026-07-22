@@ -1,4 +1,93 @@
 import bpy
+from .preferences import UI_MAPPING, FILTER_NAMES
+
+
+class MESHLAB_OT_set_filter(bpy.types.Operator):
+    bl_idname = "meshlab.set_filter"
+    bl_label = "Select Filter"
+    bl_description = "Selects a PyMeshLab filter."
+    bl_options = {"INTERNAL"}
+
+    filter_id: bpy.props.StringProperty()
+
+    def execute(self, context):
+        # Atualiza a string do filtro selecionado no momento
+        context.scene.meshlab_ui_state.filter_name = self.filter_id
+        return {"FINISHED"}
+
+
+# Lista para guardar as classes de submenu geradas dinamicamente
+dynamic_menu_classes = []
+
+
+def create_menu_classes():
+    global dynamic_menu_classes
+    dynamic_menu_classes.clear()
+
+    for idx, (category_name, filters) in enumerate(UI_MAPPING.items()):
+        bl_idname = f"MESHLAB_MT_category_{idx}"
+
+        def make_draw(cat_filters):
+            def draw(self, context):
+                layout = self.layout
+                current_filter = context.scene.meshlab_ui_state.filter_name
+
+                # Ordena os filtros pelo nome visual antes de desenhar no submenu
+                sorted_filters = sorted(
+                    cat_filters,
+                    key=lambda f: FILTER_NAMES.get(f, f.replace("_", " ").title()),
+                )
+
+                for f_id in sorted_filters:
+                    name = FILTER_NAMES.get(f_id, f_id.replace("_", " ").title())
+
+                    # Desenha o operador com ou sem o ícone 'FILTER' (funil) dependendo do estado
+                    if f_id == current_filter:
+                        op = layout.operator(
+                            "meshlab.set_filter", text=name, icon="FILTER"
+                        )
+                    else:
+                        op = layout.operator("meshlab.set_filter", text=name)
+
+                    op.filter_id = f_id
+
+            return draw
+
+        # Geração dinâmica da classe do Submenu para o Blender
+        menu_cls = type(
+            bl_idname,
+            (bpy.types.Menu,),
+            {
+                "bl_idname": bl_idname,
+                "bl_label": category_name,
+                "draw": make_draw(filters),
+            },
+        )
+        dynamic_menu_classes.append(menu_cls)
+
+
+# Inicializa as classes dinâmicas durante o carregamento do módulo
+create_menu_classes()
+
+
+class MESHLAB_MT_main_menu(bpy.types.Menu):
+    bl_idname = "MESHLAB_MT_main_menu"
+    bl_label = "PyMeshLab Filters"
+
+    def draw(self, context):
+        layout = self.layout
+        current_filter = context.scene.meshlab_ui_state.filter_name
+
+        for idx, category_name in enumerate(UI_MAPPING.keys()):
+            # Verifica se o filtro atualmente ativo está dentro da lista desta categoria
+            if current_filter in UI_MAPPING[category_name]:
+                # Desenha o submenu com o ícone caso o filtro pertença a ele
+                layout.menu(
+                    f"MESHLAB_MT_category_{idx}", text=category_name, icon="FILTER"
+                )
+            else:
+                # Desenha o submenu normalmente sem o ícone
+                layout.menu(f"MESHLAB_MT_category_{idx}", text=category_name)
 
 
 class MESHLAB_OT_reset_filter_settings(bpy.types.Operator):
@@ -30,10 +119,34 @@ class MESHLAB_PT_main_panel(bpy.types.Panel):
         prefs = context.scene.meshlab_prefs
         ui_state = context.scene.meshlab_ui_state
 
-        layout.prop(ui_state, "category", text="Category")
-        layout.prop(ui_state, "filter_name", text="Filter")
-
         active_filter = ui_state.filter_name
+
+        # Obtém o nome formatado para exibir dentro da caixa preta
+        if active_filter == "NONE" or not active_filter:
+            display_name = "Select a Filter..."
+        else:
+            display_name = FILTER_NAMES.get(
+                active_filter, active_filter.replace("_", " ").title()
+            )
+
+        # Replica a estrutura visual exata de "use_property_split" nativa do Blender
+        split = layout.split(factor=0.4)
+
+        # Coluna da esquerda (Rótulo): Força o alinhamento para a direita para "grudar" na caixa
+        col_label = split.column(align=True)
+        col_label.alignment = "RIGHT"
+        col_label.label(text="Filter")
+
+        # Coluna da direita (Caixa preta interativa)
+        col_menu = split.column(align=True)
+        # Controla a altura da caixa do menu principal (1.0 é o padrão)
+        col_menu.scale_y = 1.2
+
+        if active_filter == "NONE" or not active_filter:
+            col_menu.menu("MESHLAB_MT_main_menu", text=display_name)
+        else:
+            col_menu.menu("MESHLAB_MT_main_menu", text=display_name, icon="FILTER")
+
         if active_filter == "NONE":
             return
 

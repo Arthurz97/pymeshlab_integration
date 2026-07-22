@@ -68,45 +68,18 @@ class MESHLAB_props_preferences(bpy.types.PropertyGroup):
     )
 
 
-def update_category(self, context):
-    cat = self.category
-    if cat in UI_MAPPING:
-        # Ordena usando o Nome Visual antes de selecionar o primeiro automaticamente
-        valid_filters = sorted(
-            UI_MAPPING[cat],
+# Captura o primeiro filtro da primeira categoria para ser o default
+_default_filter = "NONE"
+if UI_MAPPING:
+    _first_category_filters = list(UI_MAPPING.values())[0]
+    if _first_category_filters:
+        # Ordena usando a mesma lógica visual para garantir que o primeiro seja o correto
+        _sorted_filters = sorted(
+            _first_category_filters,
             key=lambda f: FILTER_NAMES.get(f, f.replace("_", " ").title()),
         )
-        if valid_filters and self.filter_name not in valid_filters:
-            self.filter_name = valid_filters[0]
-
-
-def get_categories(self, context):
-    return [(k, k, CATEGORY_DESCRIPTIONS.get(k, "")) for k in sorted(UI_MAPPING.keys())]
-
-
-def get_filters(self, context):
-    cat = context.scene.meshlab_ui_state.category
-
-    if cat not in UI_MAPPING:
-        return [("NONE", "No filter", "")]
-
-    # Gera os itens e ordena especificamente pelo índice [1] (o Nome Visual da UI)
-    filters = UI_MAPPING[cat]
-    items = [
-        (
-            f,
-            FILTER_NAMES.get(f, f.replace("_", " ").title()),
-            FILTER_DESCRIPTIONS.get(f, ""),
-        )
-        for f in filters
-    ]
-    items.sort(key=lambda x: x[1])
-
-    return items if items else [("NONE", "No filter", "")]
+        _default_filter = _sorted_filters[0] if _sorted_filters else "NONE"
 
 
 class MESHLAB_props_ui_state(bpy.types.PropertyGroup):
-    category: EnumProperty(
-        name="Category", items=get_categories, update=update_category
-    )
-    filter_name: EnumProperty(name="Filter", items=get_filters)
+    filter_name: bpy.props.StringProperty(name="Filter", default=_default_filter)
