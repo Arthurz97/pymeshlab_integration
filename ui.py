@@ -28,7 +28,6 @@ class MESHLAB_PT_main_panel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         prefs = context.scene.meshlab_prefs
-        addon_prefs = context.preferences.addons[__package__].preferences
         ui_state = context.scene.meshlab_ui_state
 
         layout.prop(ui_state, "category", text="Category")
@@ -69,40 +68,8 @@ class MESHLAB_PT_main_panel(bpy.types.Panel):
             box_filter = layout.box()
             box_filter.label(text="Parameters:", icon="TOOL_SETTINGS")
 
-            processed = set()
-
+            # Desenha todas as propriedades da classe dinamicamente, sem necessidade de customizações
             for key in props.__class__.__annotations__.keys():
-                if key in processed:
-                    continue
-
-                if key.endswith("_abs"):
-                    base = key.replace("_abs", "")
-                    perc_key = f"{base}_perc"
-                    ui_label = props.bl_rna.properties[perc_key].name
-
-                    diag = 1.0
-                    obj = context.active_object
-                    if obj and obj.type == "MESH":
-                        diag = obj.dimensions.length
-                        if diag == 0:
-                            diag = 1.0
-
-                    box_filter.label(text=f"{ui_label} (abs and %)")
-                    row = box_filter.row(align=True)
-
-                    col_abs = row.column()
-                    col_abs.label(text="world unit")
-                    col_abs.prop(props, key, text="")
-
-                    col_perc = row.column()
-                    col_perc.label(text=f"perc on(0 .. {diag:.4f})")
-                    col_perc.prop(props, perc_key, text="")
-
-                    processed.add(key)
-                    processed.add(perc_key)
-
-                elif not key.endswith("_perc"):
-                    ui_label = props.bl_rna.properties[key].name
-                    row = box_filter.row()
-                    row.prop(props, key, text=ui_label)
-                    processed.add(key)
+                ui_label = props.bl_rna.properties[key].name
+                row = box_filter.row()
+                row.prop(props, key, text=ui_label)

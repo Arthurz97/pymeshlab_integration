@@ -112,15 +112,27 @@ class MeshLabFilterBase:
 
                 # --- LEITURA DE PARÂMETROS ---
                 params = {}
-                for key in cls.__annotations__.keys():
-                    if key.endswith("_abs"):
-                        continue  # Ignora a propriedade absoluta (usada apenas para a UI)
+                perc_params = getattr(cls, "percentage_parameters", [])
 
-                    if key.endswith("_perc"):
-                        # ESSENCIAL: Extrai o nome real do parâmetro para o PyMeshLab (ex: 'targetlen_perc' -> 'targetlen')
-                        real_key = key.replace("_perc", "")
-                        val = getattr(props, key)
-                        params[real_key] = pymeshlab.PercentageValue(float(val))
+                # Calcula a diagonal para conversões (evitando divisão por zero)
+                diag = (
+                    original_obj.dimensions.length
+                    if (original_obj and original_obj.type == "MESH")
+                    else 1.0
+                )
+                diag = diag if diag > 0 else 1.0
+
+                for key in cls.__annotations__.keys():
+                    if key.startswith("blender_"):
+                        # Ignora os parâmetros de pós-processamento nativos do Blender
+                        continue
+
+                    val = getattr(props, key)
+
+                    if key in perc_params:
+                        # Conversão invisível: Unidade Absoluta Blender -> Porcentagem PyMeshLab
+                        perc_val = (float(val) / diag) * 100.0
+                        params[key] = pymeshlab.PercentageValue(perc_val)
                     else:
                         params[key] = getattr(props, key)
 
@@ -193,6 +205,13 @@ class MeshLabFilterBase:
                 # SHADE FLAT: Aplicável a primitivas criadas ou malhas onde normais suaves causem artefatos visuais.
                 if cls.shade_flat:
                     bpy.ops.object.shade_flat()
+
+                # PÓS-PROCESSAMENTO BLENDER: Converte triângulos em quads se ativado na UI
+                if getattr(props, "blender_quad", False):
+                    bpy.ops.object.mode_set(mode="EDIT")
+                    bpy.ops.mesh.select_all(action="SELECT")
+                    bpy.ops.mesh.tris_convert_to_quads()
+                    bpy.ops.object.mode_set(mode="OBJECT")
 
                 # AÇÃO SOBRE O OBJETO ANTERIOR (Keep, Hide, Delete)
                 if apply_prev_mesh_action in ["HIDE", "DELETE"]:

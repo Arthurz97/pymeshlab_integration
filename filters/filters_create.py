@@ -1,6 +1,7 @@
 import bpy
+import math
 from bpy.types import PropertyGroup
-from bpy.props import FloatProperty, IntProperty
+from bpy.props import FloatProperty, IntProperty, BoolProperty
 from ..base_filter import MeshLabFilterBase
 
 # ==============================================================================
@@ -22,12 +23,17 @@ class MESHLAB_PG_create_cube(PropertyGroup, MeshLabFilterBase):
 
     size: FloatProperty(
         name="Size",
-        description="Create a Box, Cube, Hexahedron. You can specify the side length.",
+        description="Scales the new mesh.",
         subtype="DISTANCE",
         unit="LENGTH",
         default=1.0,
         min=0.001,
         max=5000.0,
+    )
+    blender_quad: BoolProperty(
+        name="Quad",
+        description="Convert tris to quads.",
+        default=True,
     )
 
 
@@ -59,13 +65,16 @@ class MESHLAB_PG_create_sphere_cap(PropertyGroup, MeshLabFilterBase):
     requires_selection = False
     shade_flat = True
     remove_attributes = ["custom_normal", "material_index", "sharp_edge"]
+    angle_parameters = ["angle"]
 
     angle: FloatProperty(
-        name="Angle",
+        name="Angle (°)",
         description="Angle of the cone subtending the cap. It must be < 180.",
         default=60.0,
         min=0.001,
         max=179.99,
+        precision=1,
+        step=10,
     )
     subdiv: IntProperty(
         name="Subdiv. Level",
@@ -110,6 +119,11 @@ class MESHLAB_PG_create_torus(PropertyGroup, MeshLabFilterBase):
         default=12,
         min=3,
     )
+    blender_quad: BoolProperty(
+        name="Quad",
+        description="Convert tris to quads.",
+        default=True,
+    )
 
 
 class MESHLAB_PG_create_annulus(PropertyGroup, MeshLabFilterBase):
@@ -139,6 +153,11 @@ class MESHLAB_PG_create_annulus(PropertyGroup, MeshLabFilterBase):
         description="Number of the sides of the poligonal approximation of the annulus",
         default=32,
         min=3,
+    )
+    blender_quad: BoolProperty(
+        name="Quad",
+        description="Convert tris to quads.",
+        default=True,
     )
 
 
@@ -177,4 +196,9 @@ class MESHLAB_PG_create_cone(PropertyGroup, MeshLabFilterBase):
         description="Number of sides of the polygonal approximation of the cone",
         default=36,
         min=3,
+    )
+    blender_quad: BoolProperty(
+        name="Quad",
+        description="Convert tris to quads.",
+        default=True,
     )

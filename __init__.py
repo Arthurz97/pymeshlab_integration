@@ -7,7 +7,6 @@ from .filters import filters_create
 from .filters import filters_meshing
 
 classes = (
-    preferences.MESHLAB_preferences,
     preferences.MESHLAB_props_preferences,
     preferences.MESHLAB_props_ui_state,
     base_filter.MESHLAB_OT_apply_filter,

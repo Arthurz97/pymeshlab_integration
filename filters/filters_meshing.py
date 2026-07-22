@@ -1,4 +1,5 @@
 import bpy
+import math
 from bpy.types import PropertyGroup
 from bpy.props import FloatProperty, IntProperty, BoolProperty
 from ..base_filter import MeshLabFilterBase
@@ -8,32 +9,14 @@ from ..base_filter import MeshLabFilterBase
 # Filtros que exigem seleção de malhas e cálculos de bounding box.
 # ==============================================================================
 
-# --- FUNÇÕES MATEMÁTICAS CONTÍNUAS ---
-# Gerenciam as propriedades '_abs' e '_perc' para simular o PercentageValue do PyMeshLab.
-# A conversão ocorre em tempo real usando a diagonal / Bounding Box do objeto ativo.
-
-
-def get_abs_val(self, prop_name):
-    obj = bpy.context.active_object
-    diag = obj.dimensions.length if (obj and obj.type == "MESH") else 1.0
-    diag = diag if diag > 0 else 1.0
-    val_perc = getattr(self, prop_name)
-    return (val_perc / 100.0) * diag
-
-
-def set_abs_val(self_obj, value, prop_name):
-    obj = bpy.context.active_object
-    diag = obj.dimensions.length if (obj and obj.type == "MESH") else 1.0
-    diag = diag if diag > 0 else 1.0
-    val_abs = max(0.0, min(value, diag))
-    setattr(self_obj, prop_name, (val_abs / diag) * 100.0)
-
 
 class MESHLAB_PG_meshing_isotropic_explicit_remeshing(PropertyGroup, MeshLabFilterBase):
     pymeshlab_filter = "meshing_isotropic_explicit_remeshing"
     requires_selection = True
     shade_flat = True
     remove_attributes = ["quality", "texture_u", "texture_v", "sharp_face", "Col"]
+    percentage_parameters = ["targetlen", "maxsurfdist"]
+    angle_parameters = ["featuredeg"]
 
     iterations: IntProperty(
         name="Iterations",
@@ -52,31 +35,24 @@ class MESHLAB_PG_meshing_isotropic_explicit_remeshing(PropertyGroup, MeshLabFilt
         default=False,
     )
 
-    # Precisão Matemática Fixada em 3 decimais de 50 steps (perc) e 6 decimais de 1 step (abs)
-    targetlen_perc: FloatProperty(
+    # Parâmetros com Subtype de Distância real no Blender. Serão convertidos invisivelmente para % no base_filter.
+    targetlen: FloatProperty(
         name="Target Length",
-        description="Sets the target length for the remeshed mesh edges.",
-        default=1.0,
-        min=0.0,
-        max=100.0,
-        precision=3,
-        step=50,
-    )
-    targetlen_abs: FloatProperty(
-        name="world unit",
-        description="Sets the target length for the remeshed mesh edges.",
-        get=lambda s: get_abs_val(s, "targetlen_perc"),
-        set=lambda s, v: set_abs_val(s, v, "targetlen_perc"),
-        precision=6,
-        step=1,
+        description="Sets the absolute target length for the remeshed mesh edges.",
+        subtype="DISTANCE",
+        unit="LENGTH",
+        default=0.1,
+        min=0.0001,
     )
 
     featuredeg: FloatProperty(
-        name="Crease Angle",
+        name="Crease Angle (°)",
         description="Minimum angle between faces of the original to consider the shared edge as a feature to be preserved.",
         default=30.0,
         min=0.0,
         max=180.0,
+        precision=1,
+        step=10,
     )
     checksurfdist: BoolProperty(
         name="Check Surface Distance",
@@ -84,22 +60,13 @@ class MESHLAB_PG_meshing_isotropic_explicit_remeshing(PropertyGroup, MeshLabFilt
         default=False,
     )
 
-    maxsurfdist_perc: FloatProperty(
+    maxsurfdist: FloatProperty(
         name="Max. Surface Distance",
-        description="Maximal surface deviation allowed for each local operation.",
-        default=1.0,
+        description="Maximal absolute surface deviation allowed for each local operation.",
+        subtype="DISTANCE",
+        unit="LENGTH",
+        default=0.01,
         min=0.0,
-        max=100.0,
-        precision=3,
-        step=50,
-    )
-    maxsurfdist_abs: FloatProperty(
-        name="world unit",
-        description="Maximal surface deviation allowed for each local operation.",
-        get=lambda s: get_abs_val(s, "maxsurfdist_perc"),
-        set=lambda s, v: set_abs_val(s, v, "maxsurfdist_perc"),
-        precision=6,
-        step=1,
     )
 
     splitflag: BoolProperty(
