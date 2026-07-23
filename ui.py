@@ -1,14 +1,21 @@
 import bpy
-from .preferences import UI_MAPPING, FILTER_NAMES
+from .preferences import UI_MAPPING, FILTER_NAMES, FILTER_DESCRIPTIONS
 
 
 class MESHLAB_OT_set_filter(bpy.types.Operator):
     bl_idname = "meshlab.set_filter"
     bl_label = "Select Filter"
-    bl_description = "Selects a PyMeshLab filter."
     bl_options = {"INTERNAL"}
 
     filter_id: bpy.props.StringProperty()
+
+    @classmethod
+    def description(cls, context, properties):
+        if properties and properties.filter_id:
+            return FILTER_DESCRIPTIONS.get(
+                properties.filter_id, "Selects a PyMeshLab filter."
+            )
+        return "Selects a PyMeshLab filter."
 
     def execute(self, context):
         # Atualiza a string do filtro selecionado no momento

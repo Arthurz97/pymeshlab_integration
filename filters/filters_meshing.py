@@ -43,6 +43,7 @@ class MESHLAB_PG_meshing_isotropic_explicit_remeshing(PropertyGroup, MeshLabFilt
         unit="LENGTH",
         default=0.1,
         min=0.0001,
+        soft_min=0.01,
     )
 
     featuredeg: FloatProperty(

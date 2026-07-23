@@ -5,6 +5,7 @@ from . import ui
 from . import io_handlers
 from .filters import filters_create
 from .filters import filters_meshing
+from .filters import filters_generate
 
 classes = (
     preferences.MESHLAB_props_preferences,
@@ -22,6 +23,7 @@ classes = (
     filters_create.MESHLAB_PG_create_annulus,
     filters_create.MESHLAB_PG_create_cone,
     filters_meshing.MESHLAB_PG_meshing_isotropic_explicit_remeshing,
+    filters_generate.MESHLAB_PG_generate_resampled_uniform_mesh,
 )
 
 
@@ -57,6 +59,9 @@ def register():
     bpy.types.Scene.ml_meshing_isotropic_explicit_remeshing = bpy.props.PointerProperty(
         type=filters_meshing.MESHLAB_PG_meshing_isotropic_explicit_remeshing
     )
+    bpy.types.Scene.ml_generate_resampled_uniform_mesh = bpy.props.PointerProperty(
+        type=filters_generate.MESHLAB_PG_generate_resampled_uniform_mesh
+    )
 
 
 def unregister():
@@ -72,3 +77,4 @@ def unregister():
     del bpy.types.Scene.ml_create_annulus
     del bpy.types.Scene.ml_create_cone
     del bpy.types.Scene.ml_meshing_isotropic_explicit_remeshing
+    del bpy.types.Scene.ml_generate_resampled_uniform_mesh

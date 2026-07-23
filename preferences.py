@@ -11,7 +11,8 @@ UI_MAPPING = {
         "create_cone",
     ],
     "Remeshing, Simplification and Reconstruction": [
-        "meshing_isotropic_explicit_remeshing"
+        "meshing_isotropic_explicit_remeshing",
+        "generate_resampled_uniform_mesh",
     ],
 }
 
@@ -23,6 +24,7 @@ FILTER_NAMES = {
     "create_annulus": "Annulus",
     "create_cone": "Cone",
     "meshing_isotropic_explicit_remeshing": "Remeshing: Isotropic Explicit Remeshing",
+    "generate_resampled_uniform_mesh": "Uniform Mesh Resampling",
 }
 
 FILTER_DESCRIPTIONS = {
@@ -33,12 +35,7 @@ FILTER_DESCRIPTIONS = {
     "create_annulus": "Create an Annulus e.g. a flat region bounded by two concentric circles, or a holed disk.",
     "create_cone": "Create a Cone",
     "meshing_isotropic_explicit_remeshing": "Perform a explicit remeshing of a triangular mesh, by repeatedly applying edge flip, collapse, relax and refine operations.",
-}
-
-# --- NOVO DICIONÁRIO: DESCRIÇÕES DAS CATEGORIAS ---
-CATEGORY_DESCRIPTIONS = {
-    "Create New Mesh": "Tools and filters for generating new 3D meshes and primitives from scratch.",
-    "Remeshing, Simplification and Reconstruction": "Filters for remeshing, simplifying, and reconstructing 3D models.",
+    "generate_resampled_uniform_mesh": "Create a new mesh that is a resampled version of the current one. The resampling is done by building a uniform volumetric representation where each voxel contains the signed distance from the original surface. The resampled surface is reconstructed using the marching cube algorithm over this volume.",
 }
 
 

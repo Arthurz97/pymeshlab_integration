@@ -130,9 +130,8 @@ class MeshLabFilterBase:
                     val = getattr(props, key)
 
                     if key in perc_params:
-                        # Conversão invisível: Unidade Absoluta Blender -> Porcentagem PyMeshLab
-                        perc_val = (float(val) / diag) * 100.0
-                        params[key] = pymeshlab.PercentageValue(perc_val)
+                        # Envia o valor absoluto real direto para o motor C++, usando a classe atualizada da API
+                        params[key] = pymeshlab.PureValue(float(val))
                     else:
                         params[key] = getattr(props, key)
 
@@ -219,7 +218,6 @@ class MeshLabFilterBase:
                         if obj:
                             if apply_prev_mesh_action == "HIDE":
                                 obj.hide_set(True)
-                                obj.hide_render = True
                             elif apply_prev_mesh_action == "DELETE":
                                 bpy.data.objects.remove(obj, do_unlink=True)
 
@@ -243,7 +241,7 @@ class MESHLAB_OT_apply_filter(bpy.types.Operator):
         return context.area and context.area.type == "VIEW_3D"
 
     def execute(self, context):
-        from .filters import filters_create, filters_meshing
+        from .filters import filters_create, filters_meshing, filters_generate
 
         # Mapeamento estrito das classes de filtro ativadas pelo Menu UI
         mapping = {
@@ -274,6 +272,10 @@ class MESHLAB_OT_apply_filter(bpy.types.Operator):
             "meshing_isotropic_explicit_remeshing": (
                 filters_meshing.MESHLAB_PG_meshing_isotropic_explicit_remeshing,
                 context.scene.ml_meshing_isotropic_explicit_remeshing,
+            ),
+            "generate_resampled_uniform_mesh": (
+                filters_generate.MESHLAB_PG_generate_resampled_uniform_mesh,
+                context.scene.ml_generate_resampled_uniform_mesh,
             ),
         }
 
