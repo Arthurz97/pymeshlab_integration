@@ -190,6 +190,12 @@ class MESHLAB_PT_main_panel(bpy.types.Panel):
 
             # Desenha todas as propriedades da classe dinamicamente, sem necessidade de customizações
             for key in props.__class__.__annotations__.keys():
+                # Verifica se a classe do filtro pede para ocultar essa propriedade no estado atual
+                if hasattr(props, "is_property_hidden") and props.is_property_hidden(
+                    key
+                ):
+                    continue
+
                 ui_label = props.bl_rna.properties[key].name
                 row = box_filter.row()
                 row.prop(props, key, text=ui_label)

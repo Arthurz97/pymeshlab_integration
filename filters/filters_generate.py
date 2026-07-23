@@ -1,4 +1,5 @@
 import bpy
+import pymeshlab
 from bpy.types import PropertyGroup
 from bpy.props import FloatProperty, BoolProperty
 from ..base_filter import MeshLabFilterBase
@@ -11,9 +12,24 @@ from ..base_filter import MeshLabFilterBase
 class MESHLAB_PG_generate_resampled_uniform_mesh(PropertyGroup, MeshLabFilterBase):
     pymeshlab_filter = "generate_resampled_uniform_mesh"
     requires_selection = True
-    shade_flat = False
+    shade_flat = True
     remove_attributes = ["custom_normal", "sharp_edge", "sharp_face"]
     percentage_parameters = ["cellsize", "offset"]
+
+    def is_property_hidden(self, key):
+        # UI Dinâmica: Alterna a exibição entre o slider livre e o slider protegido
+        if key == "offset" and self.absdist:
+            return True
+        if key == "ui_offset_abs" and not self.absdist:
+            return True
+        return False
+
+    @classmethod
+    def pre_process_parameters(cls, params, props):
+        # Injeção de Dados: Se absoluto está ativo, pega o valor do slider seguro
+        # e injeta no parâmetro 'offset' original que o PyMeshLab exige.
+        if props.absdist:
+            params["offset"] = pymeshlab.PureValue(float(props.ui_offset_abs))
 
     cellsize: FloatProperty(
         name="Precision",
@@ -31,6 +47,16 @@ class MESHLAB_PG_generate_resampled_uniform_mesh(PropertyGroup, MeshLabFilterBas
         unit="LENGTH",
         default=0.0,
         soft_min=-0.1,
+        soft_max=1.0,
+    )
+    ui_offset_abs: FloatProperty(
+        name="Offset",
+        description="[Absolute Mode] Offset of the created surface. Must be strictly positive. Values too close to zero may result in broken topology.",
+        subtype="DISTANCE",
+        unit="LENGTH",
+        default=0.03,
+        min=0.000001,
+        soft_min=0.03,
         soft_max=1.0,
     )
     mergeclosevert: BoolProperty(

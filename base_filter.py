@@ -123,8 +123,8 @@ class MeshLabFilterBase:
                 diag = diag if diag > 0 else 1.0
 
                 for key in cls.__annotations__.keys():
-                    if key.startswith("blender_"):
-                        # Ignora os parâmetros de pós-processamento nativos do Blender
+                    if key.startswith("blender_") or key.startswith("ui_"):
+                        # Ignora variáveis exclusivas de interface ou do Blender
                         continue
 
                     val = getattr(props, key)
@@ -134,6 +134,10 @@ class MeshLabFilterBase:
                         params[key] = pymeshlab.PureValue(float(val))
                     else:
                         params[key] = getattr(props, key)
+
+                # Permite que o filtro intercepte, injete ou altere parâmetros antes de enviar ao motor C++
+                if hasattr(cls, "pre_process_parameters"):
+                    cls.pre_process_parameters(params, props)
 
                 # EXECUÇÃO: Aplica o filtro com os parâmetros mapeados
                 ms.apply_filter(cls.pymeshlab_filter, **params)
