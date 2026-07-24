@@ -166,15 +166,13 @@ class MESHLAB_PT_main_panel(bpy.types.Panel):
             )
             # --- Ação sobre o objeto e Botão de Aplicar (Movidos para o topo) ---
 
-            # Cria uma linha isolada usando o padrão 'split' nativo do Blender
-            row_action = layout.row()
-            row_action.use_property_split = True
-            row_action.use_property_decorate = (
-                False  # Oculta o ponto de keyframe de animação (opcional)
-            )
+            # Empilha as configurações globais usando o padrão 'split' nativo
+            col_action = layout.column(align=True)
+            col_action.use_property_split = True
+            col_action.use_property_decorate = False
 
-            # Removemos o ':' do final do texto, pois o Blender no modo 'split' cuida da formatação sozinho.
-            row_action.prop(prefs, "global_prev_mesh_action", text="Action on Selected")
+            col_action.prop(prefs, "processing_engine", text="Engine")
+            col_action.prop(prefs, "global_prev_mesh_action", text="Action on Selected")
 
             col = layout.column()
             col.scale_y = 1.5

@@ -40,6 +40,28 @@ FILTER_DESCRIPTIONS = {
 
 
 class MESHLAB_props_preferences(bpy.types.PropertyGroup):
+    processing_engine: EnumProperty(
+        name="Engine",
+        description="Select the processing pipeline. Memory is vastly faster, Disk is safer for extreme high-poly meshes.",
+        items=[
+            (
+                "MEMORY",
+                "Memory (RAM)",
+                "Processes arrays directly in memory via NumPy. Instant I/O.",
+                "MEMORY",
+                0,
+            ),
+            (
+                "DISK",
+                "Disk (I/O)",
+                "Exports temporary PLY files. Slower, but safe fallback for memory limits.",
+                "DISK_DRIVE",
+                1,
+            ),
+        ],
+        default="MEMORY",
+    )
+
     global_prev_mesh_action: EnumProperty(
         name="Action on Selected",
         description="Choose what to do with the originally selected object.",

@@ -1,5 +1,8 @@
 import bpy, os, tempfile, gc, math
 import pymeshlab
+import numpy as np
+import time
+from . import utils
 
 
 class MeshLabFilterBase:
@@ -47,68 +50,98 @@ class MeshLabFilterBase:
 
         prefs = context.scene.meshlab_prefs
         apply_prev_mesh_action = prefs.global_prev_mesh_action
+        engine = prefs.processing_engine
 
         try:
             with tempfile.TemporaryDirectory() as tmpdir:
                 output_path = os.path.join(tmpdir, "output.ply")
                 ms = pymeshlab.MeshSet()
 
-                # EXPORTAÇÃO (DISK): Literalmente a cópia do script original
-                # Salva a malha selecionada temporariamente para ser lida pelo PyMeshLab
-                if cls.requires_selection and has_mesh:
-                    input_path = os.path.join(tmpdir, "input.ply")
-                    bpy.ops.object.select_all(action="DESELECT")
-                    original_obj.select_set(True)
-
-                    # Sincroniza a memória do Blender
-                    context.view_layer.update()
-                    original_obj.data.update()
-
-                    # ---- 1. PROTEÇÃO DE CORES E TRANSFERÊNCIA DE SELEÇÃO ----
-                    temp_color = None
-                    export_kwargs = {
-                        "filepath": input_path,
-                        "export_selected_objects": True,
-                        "ascii_format": False,  # Força explicitamente o formato Binário para máxima performance de I/O
-                    }
-
-                    if is_selected_only:
-                        # USAMOS POINT (Vértices) porque o PLY C++ garante essa exportação
-                        temp_color = original_obj.data.color_attributes.new(
-                            name="Col", type="BYTE_COLOR", domain="POINT"
+                # ==========================================================
+                # CAMINHO 1: PROCESSAMENTO EM MEMÓRIA (NumPy) - ALTA PERFORMANCE
+                # ==========================================================
+                if engine == "MEMORY":
+                    if has_mesh:
+                        # Extrai vértices, faces e matriz de seleção/cores (se exigido)
+                        vertices, faces, v_colors = utils.blender_to_numpy(
+                            original_obj, extract_selection=is_selected_only
                         )
-                        original_obj.data.attributes.active_color = temp_color
 
-                        # Extrai a seleção diretamente dos vértices
-                        colors = [
-                            val
-                            for v in original_obj.data.vertices
-                            for val in (
-                                (1.0, 1.0, 1.0, 1.0)
-                                if v.select
-                                else (0.0, 0.0, 0.0, 1.0)
+                        mesh_kwargs = {"vertex_matrix": vertices, "face_matrix": faces}
+
+                        if is_selected_only and v_colors is not None:
+                            mesh_kwargs["v_color_matrix"] = v_colors
+
+                        # Injeção direta na memória C++ do PyMeshLab
+                        m = pymeshlab.Mesh(**mesh_kwargs)
+                        ms.add_mesh(m)
+
+                        # Traduz a cor para seleção nativa no PyMeshLab
+                        if is_selected_only and v_colors is not None:
+                            # A cor branca na nossa matriz numpy significa selecionado
+                            ms.compute_selection_by_condition_per_vertex(
+                                condselect="(r > 127)"
                             )
-                        ]
-                        temp_color.data.foreach_set("color", colors)
-                        export_kwargs["export_colors"] = "SRGB"
+                            ms.compute_selection_transfer_vertex_to_face()
 
-                    # Exporta dinamicamente passando os parâmetros seguros
-                    bpy.ops.wm.ply_export(**export_kwargs)
+                # ==========================================================
+                # CAMINHO 2: PROCESSAMENTO EM DISCO (I/O) - FALLBACK DE SEGURANÇA
+                # ==========================================================
+                elif engine == "DISK":
+                    if cls.requires_selection and has_mesh:
+                        input_path = os.path.join(tmpdir, "input.ply")
+                        bpy.ops.object.select_all(action="DESELECT")
+                        original_obj.select_set(True)
 
-                    # Limpeza imediata para manter seu objeto original intacto
-                    if temp_color:
-                        original_obj.data.color_attributes.remove(temp_color)
+                        # Sincroniza a memória do Blender
+                        context.view_layer.update()
+                        original_obj.data.update()
 
-                    ms.load_new_mesh(input_path)
+                        # ---- 1. PROTEÇÃO DE CORES E TRANSFERÊNCIA DE SELEÇÃO ----
+                        temp_color = None
+                        export_kwargs = {
+                            "filepath": input_path,
+                            "export_selected_objects": True,
+                            "ascii_format": False,  # Força explicitamente o formato Binário
+                        }
 
-                    # ---- 2. TRADUÇÃO DA SELEÇÃO NO PYMESHLAB ----
-                    if is_selected_only:
-                        # Seleciona os vértices pintados de branco (r > 127)
-                        ms.compute_selection_by_condition_per_vertex(
-                            condselect="(r > 127)"
-                        )
-                        # Propaga a seleção dos vértices para as faces (Método Inclusivo Estável)
-                        ms.compute_selection_transfer_vertex_to_face()
+                        if is_selected_only:
+                            # USAMOS POINT (Vértices) porque o PLY C++ garante essa exportação
+                            temp_color = original_obj.data.color_attributes.new(
+                                name="Col", type="BYTE_COLOR", domain="POINT"
+                            )
+                            original_obj.data.attributes.active_color = temp_color
+
+                            # Extrai a seleção diretamente dos vértices
+                            colors = [
+                                val
+                                for v in original_obj.data.vertices
+                                for val in (
+                                    (1.0, 1.0, 1.0, 1.0)
+                                    if v.select
+                                    else (0.0, 0.0, 0.0, 1.0)
+                                )
+                            ]
+                            temp_color.data.foreach_set("color", colors)
+                            export_kwargs["export_colors"] = "SRGB"
+
+                        # Exporta dinamicamente passando os parâmetros seguros
+                        bpy.ops.wm.ply_export(**export_kwargs)
+
+                        # Limpeza imediata para manter seu objeto original intacto
+                        if temp_color:
+                            original_obj.data.color_attributes.remove(temp_color)
+
+                        ms.load_new_mesh(input_path)
+
+                        # ---- 2. TRADUÇÃO DA SELEÇÃO NO PYMESHLAB ----
+                        if is_selected_only:
+                            # Seleciona os vértices pintados de branco (r > 127)
+                            ms.compute_selection_by_condition_per_vertex(
+                                condselect="(r > 127)"
+                            )
+                            # Propaga a seleção dos vértices para as faces
+                            ms.compute_selection_transfer_vertex_to_face()
 
                 # --- LEITURA DE PARÂMETROS ---
                 params = {}
@@ -142,27 +175,73 @@ class MeshLabFilterBase:
                 # EXECUÇÃO: Aplica o filtro com os parâmetros mapeados
                 ms.apply_filter(cls.pymeshlab_filter, **params)
 
-                # Execução e Salvamento IDÊNTICOS ao operators.py antigo. Sem flags inventadas.
-                ms.save_current_mesh(output_path)
+                # ==========================================================
+                # RECUPERAÇÃO DA GEOMETRIA: MEMÓRIA vs DISCO
+                # ==========================================================
+                new_obj = None
 
-                # SEGURANÇA DE FALHA E LIMPEZA DE MEMÓRIA (C++)
-                ms.clear()
-                del ms
-                gc.collect()
+                if engine == "MEMORY":
+                    # Extrai as matrizes processadas diretamente da memória RAM
+                    out_mesh = ms.current_mesh()
+                    out_vertices = out_mesh.vertex_matrix()
+                    out_faces = out_mesh.face_matrix()
 
-                if not os.path.exists(output_path):
-                    return (
-                        "CANCELLED",
-                        "O motor C++ falhou silenciosamente e nenhuma malha foi gerada.",
-                    )
+                    # Libera a memória C++ imediatamente após extrair as matrizes
+                    ms.clear()
+                    del ms
+                    gc.collect()
 
-                # IMPORTAÇÃO DA MALHA PROCESSADA: Importação nativa sem interferências
-                bpy.ops.wm.ply_import(filepath=output_path)
+                    # Constrói o novo objeto no Blender sem tocar no disco
+                    temp_name = original_obj.name if original_obj else "Mesh"
+                    new_obj = utils.numpy_to_blender(out_vertices, out_faces, temp_name)
 
-                if context.selected_objects:
-                    new_obj = context.selected_objects[0]
-                else:
-                    return "CANCELLED", "Failed to import the processed mesh."
+                    # Linka o objeto gerado na cena atual e o define como ativo
+                    context.collection.objects.link(new_obj)
+                    bpy.ops.object.select_all(action="DESELECT")
+                    new_obj.select_set(True)
+                    context.view_layer.objects.active = new_obj
+
+                elif engine == "DISK":
+                    # Salva o resultado temporariamente no disco
+                    ms.save_current_mesh(output_path)
+
+                    # SEGURANÇA DE FALHA E LIMPEZA DE MEMÓRIA (C++)
+                    ms.clear()
+                    del ms
+                    gc.collect()
+
+                    if not os.path.exists(output_path):
+                        return (
+                            "CANCELLED",
+                            "O motor C++ falhou silenciosamente e nenhuma malha foi gerada no disco.",
+                        )
+
+                    # IMPORTAÇÃO DA MALHA PROCESSADA via importador nativo
+                    bpy.ops.wm.ply_import(filepath=output_path)
+
+                    if context.selected_objects:
+                        new_obj = context.selected_objects[0]
+                        # Limpa a seleção da malha vinda do disco também
+                        if new_obj.type == "MESH":
+                            m_data = new_obj.data
+
+                            # FORÇA O BLENDER A CALCULAR AS ARESTAS DO PLY ANTES DA LIMPEZA
+                            m_data.update(calc_edges=True)
+
+                            m_data.vertices.foreach_set(
+                                "select", np.zeros(len(m_data.vertices), dtype=bool)
+                            )
+                            m_data.polygons.foreach_set(
+                                "select", np.zeros(len(m_data.polygons), dtype=bool)
+                            )
+                            m_data.edges.foreach_set(
+                                "select", np.zeros(len(m_data.edges), dtype=bool)
+                            )
+
+                            # SALVA O ESTADO LIMPO
+                            m_data.update()
+                    else:
+                        return "CANCELLED", "Failed to import the processed mesh."
 
                 if cls.requires_selection and has_mesh:
                     # RESTAURAÇÃO DE MATRIZ: Se o objeto original tinha escala ou rotação aplicadas em Object Mode,
@@ -214,6 +293,10 @@ class MeshLabFilterBase:
                     bpy.ops.object.mode_set(mode="EDIT")
                     bpy.ops.mesh.select_all(action="SELECT")
                     bpy.ops.mesh.tris_convert_to_quads()
+
+                    # DESMARCA TUDO ANTES DE SAIR DO MODO DE EDIÇÃO
+                    bpy.ops.mesh.select_all(action="DESELECT")
+
                     bpy.ops.object.mode_set(mode="OBJECT")
 
                 # AÇÃO SOBRE O OBJETO ANTERIOR (Keep, Hide, Delete)
@@ -289,11 +372,27 @@ class MESHLAB_OT_apply_filter(bpy.types.Operator):
 
         cls_def, props = mapping[self.filter_id]
 
+        # ---- INÍCIO DO CRONÔMETRO ----
+        start_time = time.perf_counter()
+
         # O desempacotamento extrai o status e a mensagem da classe base
         status, msg = cls_def.apply_filter(context, props)
 
+        # ---- FIM DO CRONÔMETRO ----
+        end_time = time.perf_counter()
+        elapsed_time = end_time - start_time
+
         if status == "FINISHED":
-            self.report({"INFO"}, msg)
+            # Formata a mensagem para mostrar o tempo e o motor usado
+            engine_used = context.scene.meshlab_prefs.processing_engine
+            final_msg = f"{msg} (Tempo: {elapsed_time:.3f} segundos via {engine_used})"
+
+            # Mostra na interface (rodape do Blender) e imprime no console System
+            self.report({"INFO"}, final_msg)
+            print(
+                f"\n[PyMeshLab Integrator] Operação concluída: {elapsed_time:.3f} segundos | Motor: {engine_used}\n"
+            )
+
             return {"FINISHED"}
         else:
             self.report({"ERROR"}, msg)
